@@ -127,3 +127,17 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# shpinx
+documentation/_build
+documentation/_static
+documentation/_templates
+
+# swp files
+**.swp
+
+# data
+examples/data/*.pkl
+
+# Mac
+**.DS_Store
