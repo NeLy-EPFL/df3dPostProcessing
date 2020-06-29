@@ -1,13 +1,13 @@
 import numpy as np
+import cv2 as cv
+import os
 from mpl_toolkits.mplot3d import Axes3D
 from scipy.spatial.transform import Rotation as R
 
-def align_data(exp_dict,rescale):
+def align_data(exp_dict):
     fix = fixed_lengths_and_base_point(exp_dict)
     align = align_model(fix)
-    if rescale:
-        align = rescale_using_2d_data(align)
-
+    
     return align
 
 def fixed_lengths_and_base_point(raw_dict):
@@ -120,9 +120,165 @@ def align_model(fixed_dict):
     return aligned_dict
 
 
-def rescale_using_2d_data(exp_dict):
+def rescale_using_2d_data(data_3d,data_2d,cams_info,exp_dir,pixelSize=[5.86e-3,5.86e-3]):
     """
-    Re-scale 3d data using 2d data
+    Rescale 3d data using 2d data
     """
-    print('Re-scale 3d data using 2d data')
-    return exp_dict
+    right_view = {}
+    left_view = {}
+    #front_view = {}
+    for key, info in cams_info.items():
+        r = R.from_dcm(info['R']) 
+        th = r.as_euler('zyx', degrees=True)[1]
+        if 90-th<15:
+            right_view['R_points2d'] = data_2d[key-1]
+            right_view['cam_id'] = key-1 
+        elif 90-th>165:
+            left_view['L_points2d'] = data_2d[key-1]
+            left_view['cam_id'] = key-1
+        #elif abs(th)+1 < 10:
+        #    front_view['F_points2d'] = data_2d[key-1]
+        #    front_view['cam_id'] = key-1
+
+    #draw_legs_from_2d(left_view, exp_dir,saveimgs=True)
+    #draw_legs_on_img(right_view, exp_dir)   
+
+    for name, leg in data_3d.items():  
+        for k, joints in leg.items():
+            if k == 'Femur':
+                prev = 'Coxa'
+            if k == 'Tibia':
+                prev = 'Femur'                
+            if k == 'Tarsus':
+                prev = 'Tibia'             
+            if k == 'Claw':
+                prev = 'Tarsus'
+
+            if k != 'Coxa':
+                x_3d = joints['raw_pos_aligned'].transpose()[0] 
+                y_3d = joints['raw_pos_aligned'].transpose()[1] 
+                z_3d = joints['raw_pos_aligned'].transpose()[2]
+                x_3d_amp = np.max(x_3d)-np.min(x_3d) 
+                x_3d_zero = np.mean(data_3d[name][prev]['raw_pos_aligned'].transpose()[0])
+                
+                y_3d_amp = np.max(y_3d)-np.min(y_3d) 
+                y_3d_zero = np.mean(data_3d[name][prev]['raw_pos_aligned'].transpose()[1])
+
+                z_3d_amp = np.max(z_3d)-np.min(z_3d)
+                z_3d_zero = np.mean(data_3d[name][prev]['raw_pos_aligned'].transpose()[2])
+
+                if 'L' in name:
+                    x_2d = left_view['L_points2d'][name][k].transpose()[0]
+                    z_2d = left_view['L_points2d'][name][k].transpose()[1]
+                    x_2d_amp = (np.max(x_2d)-np.min(x_2d)) * pixelSize[0]
+                    z_2d_amp = (np.max(z_2d)-np.min(z_2d)) * pixelSize[1]
+                if 'R' in name:
+                    x_2d = right_view['R_points2d'][name][k].transpose()[0]
+                    z_2d = right_view['R_points2d'][name][k].transpose()[1]
+                    x_2d_amp = (np.max(x_2d)-np.min(x_2d)) * pixelSize[0]
+                    z_2d_amp = (np.max(z_2d)-np.min(z_2d)) * pixelSize[1]
+
+                #print(name, k, x_2d_amp / x_3d_amp, np.mean([x_2d_amp/x_3d_amp,z_2d_amp/z_3d_amp]), z_2d_amp / z_3d_amp)
+                x_3d_scaled = []
+                y_3d_scaled = []
+                z_3d_scaled = []
+                x_factor = x_2d_amp / x_3d_amp
+                y_factor = np.mean([x_2d_amp/x_3d_amp,z_2d_amp/z_3d_amp])
+                z_factor = z_2d_amp / z_3d_amp
+                for i in range(len(x_3d)):
+                    x_3d_scaled.append(x_3d_zero + (x_3d[i] - x_3d_zero) * x_factor)
+                    y_3d_scaled.append(y_3d_zero + (y_3d[i] - y_3d_zero) * y_factor)
+                    z_3d_scaled.append(z_3d_zero + (z_3d[i] - z_3d_zero) * z_factor)
+                
+                scaled_data = np.array([x_3d_scaled,y_3d_scaled,z_3d_scaled]).transpose()
+
+                joints['raw_pos_aligned'] = scaled_data
+    
+    data_3d = recalculate_lengths(data_3d)
+    
+    return data_3d
+
+def recalculate_lengths(data):
+    for name, leg in data.items():
+        for segment, body_part in leg.items():
+                dist = []
+                if 'Coxa' in segment:
+                    metric = 'raw_pos_aligned'
+                    next_segment = 'Femur'
+                    
+                if 'Femur' in segment:
+                    metric = 'raw_pos_aligned'
+                    next_segment = 'Tibia'
+                    
+                if 'Tibia' in segment:
+                    metric = 'raw_pos_aligned'
+                    next_segment = 'Tarsus'
+                    
+                if 'Tarsus' in segment:
+                    metric = 'raw_pos_aligned'
+                    next_segment = 'Claw'
+                    
+                for i, point in enumerate(body_part[metric]):
+                    a = point
+                    b = data[name][next_segment]['raw_pos_aligned'][i] 
+                    dist.append(np.linalg.norm(a-b))
+                        
+                body_part['mean_length']=np.mean(dist)
+    return data
+
+def draw_legs_from_2d(cam_view,exp_dir,begin=0,end=0,saveimgs = False):
+    key = [k for k in cam_view.keys() if 'points2d' in k][0]
+    data = cam_view[key]
+    cam_id = cam_view['cam_id']
+    
+    colors = {'LF':(255,0,0),'LM':(0,255,0),'LH':(0,0,255),'RF':(255,255,0),'RM':(255,0,255),'RH':(0,255,255)}
+    
+    if end == 0:
+        end = len(data['LF_leg']['Coxa'])
+    
+    for frame in range(begin,end):
+        df3d_dir = exp_dir.find('df3d')
+        folder = exp_dir[:df3d_dir]
+        img_name = folder + 'camera_' + str(cam_id) + '_img_' + '{:06}'.format(frame) + '.jpg'
+        img = cv.imread(img_name)
+        for leg, body_parts in data.items():
+            if leg[0] == 'L' or leg[0]=='R':
+                color = colors[leg[:2]]
+                for segment, points in body_parts.items():
+                    if segment != 'Coxa':
+                        if 'Femur' in segment:
+                            start_point = data[leg]['Coxa'][frame]
+                            end_point = points[frame]
+                        if 'Tibia' in segment:
+                            start_point = data[leg]['Femur'][frame]
+                            end_point = points[frame]
+                        if 'Tarsus' in segment:
+                            start_point = data[leg]['Tibia'][frame]
+                            end_point = points[frame]
+                        if 'Claw' in segment:
+                            start_point = data[leg]['Tarsus'][frame]
+                            end_point = points[frame]
+                        img = draw_lines(img,start_point,end_point,color=color)
+        if saveimgs:
+            file_name = exp_dir.split('/')[-1]
+            new_folder = 'results/tracking_2d/'+file_name.replace('.pkl','/')
+            if not os.path.exists(new_folder):
+                os.makedirs(new_folder)
+            name = new_folder + 'camera_' + str(cam_id) + '_img_' + '{:06}'.format(frame) + '.jpg'
+            cv.imwrite(name,img)
+        cv.imshow('img',img)
+        cv.waitKey(1)
+    cv.destroyAllWindows()
+
+
+def draw_lines(img, start, end, color = (255, 0, 0)):
+    coords_prev = np.array(start).astype(int)
+    coords_next = np.array(end).astype(int)
+
+    start_point = (coords_prev[0],coords_prev[1])
+    end_point = (coords_next[0],coords_next[1]) 
+    thickness = 5
+    
+    cv.line(img, start_point, end_point, color, thickness) 
+
+    return img
