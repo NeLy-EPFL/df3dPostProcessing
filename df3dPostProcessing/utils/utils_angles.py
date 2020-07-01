@@ -139,3 +139,80 @@ def calculate_angles(aligned_dict,begin,end):
                     angles_dict[leg]['th_ta'].append(th_tarsus)
 
     return angles_dict
+
+
+def calculate_forward_kinematics(leg_name, frame, leg_angles, data_dict, roll_tr = 0):
+    
+    if 'LF' in leg_name or 'RF' in leg_name:
+        roll = leg_angles['roll'][frame]
+    elif 'LM' in leg_name or 'LH' in leg_name:
+        roll = - (np.pi/2 + leg_angles['roll'][frame])
+    elif 'RM' in leg_name or 'RH' in leg_name:
+        roll = np.pi/2 + leg_angles['roll'][frame]
+    
+    r1 = R.from_euler('zyx',[roll,leg_angles['pitch'][frame],leg_angles['yaw'][frame]])
+    r2 = R.from_euler('zyx',[roll_tr,leg_angles['th_fe'][frame],0])
+    r3 = R.from_euler('y',leg_angles['th_ti'][frame])
+    r4 = R.from_euler('y',leg_angles['th_ta'][frame])
+
+    coxa_pos = data_dict[leg_name]['Coxa']['fixed_pos_aligned']    
+    l_coxa = data_dict[leg_name]['Coxa']['mean_length']#np.linalg.norm(coxa_pos-real_pos_femur)#
+    l_femur = data_dict[leg_name]['Femur']['mean_length']#np.linalg.norm(real_pos_femur-real_pos_tibia)#
+    l_tibia = data_dict[leg_name]['Tibia']['mean_length']#np.linalg.norm(real_pos_tibia-real_pos_tarsus)#
+    l_tarsus = data_dict[leg_name]['Tarsus']['mean_length']#np.linalg.norm(real_pos_tarsus-real_pos_claw)#
+
+    fe_init_pos = np.array([0,0,-l_coxa])
+    ti_init_pos = np.array([0,0,-l_femur])
+    ta_init_pos = np.array([0,0,-l_tibia])
+    claw_init_pos = np.array([0,0,-l_tarsus])
+
+    femur_pos = r1.apply(fe_init_pos) + coxa_pos
+    tibia_pos = r1.apply(r2.apply(ti_init_pos)) + femur_pos            
+    tarsus_pos = r1.apply(r2.apply(r3.apply(ta_init_pos))) + tibia_pos
+    claw_pos = r1.apply(r2.apply(r3.apply(r4.apply(claw_init_pos)))) + tarsus_pos
+
+    fk_pos = np.array([coxa_pos,femur_pos,tibia_pos,tarsus_pos,claw_pos])
+
+    return fk_pos
+
+def calculate_best_roll_tr(angles,data_dict,begin=0,end=0):
+
+    diff_dict = {}
+
+    if end == 0:
+        end = len(angles['LF_leg']['yaw'])    
+
+    for frame in range(begin, end):
+        print('\rFrame: '+str(frame),end='')
+
+        for name, leg in angles.items():
+
+            if not name in diff_dict.keys():
+                diff_dict[name]={'min_dist':[],'best_roll':[]}
+
+            coxa_pos = data_dict[name]['Coxa']['fixed_pos_aligned']
+            real_pos_femur = data_dict[name]['Femur']['raw_pos_aligned'][frame]
+            real_pos_tibia = data_dict[name]['Tibia']['raw_pos_aligned'][frame]
+            real_pos_tarsus = data_dict[name]['Tarsus']['raw_pos_aligned'][frame]
+            real_pos_claw = data_dict[name]['Claw']['raw_pos_aligned'][frame]
+
+            min_dist = 100000000
+            best_roll = 0
+            for i in range(0, 500):
+                if 'L' in name:
+                    roll_tr = np.deg2rad(-i/10)
+                elif 'R' in name:
+                    roll_tr = np.deg2rad(i/10)
+                    
+                pos_3d = calculate_forward_kinematics(name, frame, leg, data_dict,roll_tr=roll_tr)
+
+                dist = np.linalg.norm(pos_3d[4]-real_pos_tarsus)
+
+                if dist<min_dist:
+                    min_dist = dist
+                    best_roll = roll_tr
+
+            diff_dict[name]['min_dist'].append(min_dist)
+            diff_dict[name]['best_roll'].append(best_roll)
+
+    return diff_dict
