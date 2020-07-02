@@ -127,7 +127,77 @@ def load_data_to_dict(data):
     return final_dict
 
 
+def convert_to_df3d_output_format(aligned, fixed=True):
+    if fixed:
+        key = "fixed_pos_aligned"
+    else:
+        key = "raw_pos_aligned"
 
+    n_timepoints = len(aligned["LF_leg"]["Femur"]["raw_pos_aligned"])
 
+    points3D = []
 
+    def upsample_fixed_coxa(points, n_timepoints):
+        if points.ndim == 2:
+            return points
+        points = points[np.newaxis]
+        points = np.repeat(points, n_timepoints, axis=0)
+        return points
 
+    points3D.append(upsample_fixed_coxa(aligned["LF_leg"]["Coxa"][key], n_timepoints))
+    points3D.append(aligned["LF_leg"]["Femur"]["raw_pos_aligned"])
+    points3D.append(aligned["LF_leg"]["Tibia"]["raw_pos_aligned"])
+    points3D.append(aligned["LF_leg"]["Tarsus"]["raw_pos_aligned"])
+    points3D.append(aligned["LF_leg"]["Claw"]["raw_pos_aligned"])
+
+    points3D.append(upsample_fixed_coxa(aligned["LM_leg"]["Coxa"][key], n_timepoints))
+    points3D.append(aligned["LM_leg"]["Femur"]["raw_pos_aligned"])
+    points3D.append(aligned["LM_leg"]["Tibia"]["raw_pos_aligned"])
+    points3D.append(aligned["LM_leg"]["Tarsus"]["raw_pos_aligned"])
+    points3D.append(aligned["LM_leg"]["Claw"]["raw_pos_aligned"])
+
+    points3D.append(upsample_fixed_coxa(aligned["LH_leg"]["Coxa"][key], n_timepoints))
+    points3D.append(aligned["LH_leg"]["Femur"]["raw_pos_aligned"])
+    points3D.append(aligned["LH_leg"]["Tibia"]["raw_pos_aligned"])
+    points3D.append(aligned["LH_leg"]["Tarsus"]["raw_pos_aligned"])
+    points3D.append(aligned["LH_leg"]["Claw"]["raw_pos_aligned"])
+
+    # Left antenna
+    points3D.append(np.zeros_like(aligned["LH_leg"]["Claw"]["raw_pos_aligned"]) * np.nan)
+    # Left stripe 1
+    points3D.append(np.zeros_like(aligned["LH_leg"]["Claw"]["raw_pos_aligned"]) * np.nan)
+    # Left stripe 2
+    points3D.append(np.zeros_like(aligned["LH_leg"]["Claw"]["raw_pos_aligned"]) * np.nan)
+    # Left stripe 3
+    points3D.append(np.zeros_like(aligned["LH_leg"]["Claw"]["raw_pos_aligned"]) * np.nan)
+
+    points3D.append(upsample_fixed_coxa(aligned["RF_leg"]["Coxa"][key], n_timepoints))
+    points3D.append(aligned["RF_leg"]["Femur"]["raw_pos_aligned"])
+    points3D.append(aligned["RF_leg"]["Tibia"]["raw_pos_aligned"])
+    points3D.append(aligned["RF_leg"]["Tarsus"]["raw_pos_aligned"])
+    points3D.append(aligned["RF_leg"]["Claw"]["raw_pos_aligned"])
+
+    points3D.append(upsample_fixed_coxa(aligned["RM_leg"]["Coxa"][key], n_timepoints))
+    points3D.append(aligned["RM_leg"]["Femur"]["raw_pos_aligned"])
+    points3D.append(aligned["RM_leg"]["Tibia"]["raw_pos_aligned"])
+    points3D.append(aligned["RM_leg"]["Tarsus"]["raw_pos_aligned"])
+    points3D.append(aligned["RM_leg"]["Claw"]["raw_pos_aligned"])
+
+    points3D.append(upsample_fixed_coxa(aligned["RH_leg"]["Coxa"][key], n_timepoints))
+    points3D.append(aligned["RH_leg"]["Femur"]["raw_pos_aligned"])
+    points3D.append(aligned["RH_leg"]["Tibia"]["raw_pos_aligned"])
+    points3D.append(aligned["RH_leg"]["Tarsus"]["raw_pos_aligned"])
+    points3D.append(aligned["RH_leg"]["Claw"]["raw_pos_aligned"])
+
+    # Right antenna
+    points3D.append(np.zeros_like(aligned["RH_leg"]["Claw"]["raw_pos_aligned"]) * np.nan)
+    # Right stripe 1
+    points3D.append(np.zeros_like(aligned["RH_leg"]["Claw"]["raw_pos_aligned"]) * np.nan)
+    # Right stripe 2
+    points3D.append(np.zeros_like(aligned["RH_leg"]["Claw"]["raw_pos_aligned"]) * np.nan)
+    # Right stripe 3
+    points3D.append(np.zeros_like(aligned["RH_leg"]["Claw"]["raw_pos_aligned"]) * np.nan)
+
+    points3D = np.array(points3D)
+    points3D = np.swapaxes(points3D, 0, 1)
+    return points3D
