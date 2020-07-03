@@ -201,3 +201,54 @@ def convert_to_df3d_output_format(aligned, fixed=True):
     points3D = np.array(points3D)
     points3D = np.swapaxes(points3D, 0, 1)
     return points3D
+
+
+def angles_as_list(angles):
+    angle_list = []
+
+    angle_list.append(angles["LF_leg"]["yaw"])
+    angle_list.append(angles["LF_leg"]["pitch"])
+    angle_list.append(angles["LF_leg"]["roll"])
+    angle_list.append(angles["LF_leg"]["th_fe"])
+    angle_list.append(angles["LF_leg"]["th_ti"])
+    angle_list.append(angles["LF_leg"]["th_ta"])
+    
+    angle_list.append(angles["LM_leg"]["yaw"])
+    angle_list.append(angles["LM_leg"]["pitch"])
+    angle_list.append(angles["LM_leg"]["roll"])
+    angle_list.append(angles["LM_leg"]["th_fe"])
+    angle_list.append(angles["LM_leg"]["th_ti"])
+    angle_list.append(angles["LM_leg"]["th_ta"])
+    
+    angle_list.append(angles["LH_leg"]["yaw"])
+    angle_list.append(angles["LH_leg"]["pitch"])
+    angle_list.append(angles["LH_leg"]["roll"])
+    angle_list.append(angles["LH_leg"]["th_fe"])
+    angle_list.append(angles["LH_leg"]["th_ti"])
+    angle_list.append(angles["LH_leg"]["th_ta"])
+    
+    angle_list.append(angles["RF_leg"]["yaw"])
+    angle_list.append(angles["RF_leg"]["pitch"])
+    angle_list.append(angles["RF_leg"]["roll"])
+    angle_list.append(angles["RF_leg"]["th_fe"])
+    angle_list.append(angles["RF_leg"]["th_ti"])
+    angle_list.append(angles["RF_leg"]["th_ta"])
+    
+    angle_list.append(angles["RM_leg"]["yaw"])
+    angle_list.append(angles["RM_leg"]["pitch"])
+    angle_list.append(angles["RM_leg"]["roll"])
+    angle_list.append(angles["RM_leg"]["th_fe"])
+    angle_list.append(angles["RM_leg"]["th_ti"])
+    angle_list.append(angles["RM_leg"]["th_ta"])
+    
+    angle_list.append(angles["RH_leg"]["yaw"])
+    angle_list.append(angles["RH_leg"]["pitch"])
+    angle_list.append(angles["RH_leg"]["roll"])
+    angle_list.append(angles["RH_leg"]["th_fe"])
+    angle_list.append(angles["RH_leg"]["th_ti"])
+    angle_list.append(angles["RH_leg"]["th_ta"])
+
+    angle_list = np.array(angle_list)
+    angle_list = np.swapaxes(angle_list, 0, 1)
+    
+    return angle_list
