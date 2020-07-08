@@ -62,8 +62,8 @@ class df3dPostProcess:
             
         return self.aligned_model
 
-    def calculate_leg_angles(self, begin = 0, end = 0):
-        leg_angles = calculate_angles(self.aligned_model, begin, end)
+    def calculate_leg_angles(self, begin = 0, end = 0, get_roll_tr = True):
+        leg_angles = calculate_angles(self.aligned_model, begin, end, get_roll_tr)
         return leg_angles
 
     
