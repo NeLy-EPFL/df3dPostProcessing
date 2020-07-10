@@ -140,7 +140,7 @@ def rescale_using_2d_data(data_3d,data_2d,cams_info,exp_dir,pixelSize=[5.86e-3,5
         #    front_view['F_points2d'] = data_2d[key-1]
         #    front_view['cam_id'] = key-1
 
-    #draw_legs_from_2d(left_view, exp_dir,saveimgs=True)
+    #draw_legs_from_2d(right_view, exp_dir,saveimgs=True)
     #draw_legs_on_img(right_view, exp_dir)   
 
     for name, leg in data_3d.items():  
@@ -231,7 +231,7 @@ def draw_legs_from_2d(cam_view,exp_dir,begin=0,end=0,saveimgs = False):
     data = cam_view[key]
     cam_id = cam_view['cam_id']
     
-    colors = {'LF':(255,0,0),'LM':(0,255,0),'LH':(0,0,255),'RF':(255,255,0),'RM':(255,0,255),'RH':(0,255,255)}
+    colors = {'LF':(255,0,0),'LM':(0,255,0),'LH':(0,0,255),'RF':(153,76,0),'RM':(255,128,0),'RH':(255,178,102)}
     
     if end == 0:
         end = len(data['LF_leg']['Coxa'])

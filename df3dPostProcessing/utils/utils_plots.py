@@ -1,8 +1,13 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 import os
 from scipy.spatial.transform import Rotation as R
+from sklearn.metrics import mean_squared_error
+from sklearn import svm
 from . import utils_angles
+import pandas as pd
+
 
 def plot_angles(angles,key,degrees=True):
     leg=angles[key+'_leg']
@@ -206,39 +211,37 @@ def plot_pos_series(data_dict, legs, joints, savePlot=False, gen = 'fly'):
                 plt.show()
 
 
-def plot_legs_from_angles(angles,data_dict,exp_dir,begin=0,end=0,plane='xz',saveimgs = False, roll_tr_angles = {}):
+def plot_legs_from_angles(angles,data_dict,exp_dir,begin=0,end=0,plane='xz',saveImgs = False, dir_name='km', roll_tr_angles = {}, roll_tr = False, pause = False):
 
-    colors_real= {'LF_leg':(1,0,0),'LM_leg':(0,1,0),'LH_leg':(0,0,1),'RF_leg':(1,1,0),'RM_leg':(1,0,1),'RH_leg':(0,1,1)}
-    colors = {'LF_leg':(1,0.5,0.5),'LM_leg':(0.5,1,0.5),'LH_leg':(0.5,0.5,1),'RF_leg':(1,1,0.5),'RM_leg':(1,0.5,1),'RH_leg':(0.5,1,1)}
+    #colors_real= {'LF_leg':(1,0,0),'LM_leg':(0,1,0),'LH_leg':(0,0,1),'RF_leg':(1,1,0),'RM_leg':(1,0,1),'RH_leg':(0,1,1)}
+    #colors = {'LF_leg':(1,0.5,0.5),'LM_leg':(0.5,1,0.5),'LH_leg':(0.5,0.5,1),'RF_leg':(1,1,0.5),'RM_leg':(1,0.5,1),'RH_leg':(0.5,1,1)}
+
+    colors = {'LF_leg':(204/255,0,0),'LM_leg':(1,51/255,51/255),'LH_leg':(1,102/255,102/255),'RF_leg':(0,76/255,153/255),'RM_leg':(0,0.5,1),'RH_leg':(102/255,178/255,1)}
+
+    fig_3d = plt.figure()
+    view_2d = plt.figure()
     
     if end == 0:
         end = len(angles['LF_leg']['yaw'])
 
     for frame in range(begin, end):
         print('\rFrame: '+str(frame),end='')
-        fig_3d = plt.figure()
-        view_2d = plt.figure()
         ax_3d = fig_3d.add_subplot(111, projection='3d')
         ax_2d = plt.axes()
 
-        #ax_3d.legend()
         ax_3d.set_xlabel('X')
         ax_3d.set_ylabel('Y')
         ax_3d.set_zlabel('Z')
+        ax_3d.set_xlim(-3, 4)
+        ax_3d.set_ylim(-3, 3)
+        ax_3d.set_zlim(-0.5, 4)
         ax_3d.grid(True)
 
-        #ax_2d.legend()
         ax_2d.set_xlabel(plane[0])
         ax_2d.set_ylabel(plane[1])
-        ax_2d.set_xlim(-2.5, 3.5)
-        ax_2d.set_ylim(0, 2.5)
         ax_2d.grid(True)
 
         for name, leg in angles.items():
-
-            if not name in diff_dict.keys():
-                diff_dict[name]={'min_dist':[],'best_roll':[]}
-
             coxa_pos = data_dict[name]['Coxa']['fixed_pos_aligned']
             real_pos_femur = data_dict[name]['Femur']['raw_pos_aligned'][frame]
             real_pos_tibia = data_dict[name]['Tibia']['raw_pos_aligned'][frame]
@@ -246,22 +249,25 @@ def plot_legs_from_angles(angles,data_dict,exp_dir,begin=0,end=0,plane='xz',save
             real_pos_claw = data_dict[name]['Claw']['raw_pos_aligned'][frame]
 
             if roll_tr_angles:
-                roll_tr = roll_tr_angles[name]['best_roll']
+                roll_tr_best = roll_tr_angles[name]['roll_tr'][frame]
             else:
-                if 'LF' in name:
-                    roll_tr = np.deg2rad(-15)
-                elif 'RF' in name:
-                    roll_tr = np.deg2rad(13)
-                elif 'LM' in name:
-                    roll_tr = np.deg2rad(-20)
-                elif 'LH' in name:
-                    roll_tr = np.deg2rad(-5)
-                elif 'RM' in name:
-                    roll_tr = np.deg2rad(18)
-                elif 'RH' in name:
-                    roll_tr = np.deg2rad(5)
+                if roll_tr:
+                    if 'LF' in name:
+                        roll_tr_best = np.deg2rad(-15)
+                    elif 'LM' in name:
+                        roll_tr_best = np.deg2rad(-20)
+                    elif 'LH' in name:
+                        roll_tr_best = np.deg2rad(-5)
+                    elif 'RF' in name:
+                        roll_tr_best = np.deg2rad(13)
+                    elif 'RM' in name:
+                        roll_tr_best = np.deg2rad(18)
+                    elif 'RH' in name:
+                        roll_tr_best = np.deg2rad(5)
+                else:
+                    roll_tr_best = 0    
 
-            pos_3d = utils_angles.calculate_forward_kinematics(name, frame, leg, data_dict,roll_tr=roll_tr).transpose()
+            pos_3d = utils_angles.calculate_forward_kinematics(name, frame, leg, data_dict,extraDOF={'roll_tr':roll_tr_best}).transpose()
 
                       
             x = pos_3d[0]
@@ -273,22 +279,28 @@ def plot_legs_from_angles(angles,data_dict,exp_dir,begin=0,end=0,plane='xz',save
             real_x = real_pos_3d[0]
             real_y = real_pos_3d[1]
             real_z = real_pos_3d[2]
-            ax_3d.plot(real_x, real_y, real_z, '--x', label=name+'_real', color = colors_real[name])
+            ax_3d.plot(real_x, real_y, real_z, '--x', label=name+'_real', color = colors[name])
 
             if plane == 'xy':
-                ax_2d.plot(real_x, real_y, '--x', label=name+'_real', color = colors_real[name])
+                ax_2d.set_xlim(-3, 4)
+                ax_2d.set_ylim(-3, 3)
+                ax_2d.plot(real_x, real_y, '--x', label=name+'_real', color = colors[name])
                 ax_2d.plot(x, y, '-o', label=name, color = colors[name])
             if plane == 'xz':
-                ax_2d.plot(real_x, real_z, '--x', label=name+'_real', color = colors_real[name])
+                ax_2d.set_xlim(-3, 4)
+                ax_2d.set_ylim(-0.5, 4)
+                ax_2d.plot(real_x, real_z, '--x', label=name+'_real', color = colors[name])
                 ax_2d.plot(x, z, '-o', label=name, color = colors[name])
             if plane == 'yz':
-                ax_2d.plot(real_y, real_z, '--x', label=name+'_real', color = colors_real[name])
+                ax_2d.set_xlim(-3, 3)
+                ax_2d.set_ylim(-0.5, 4)
+                ax_2d.plot(real_y, real_z, '--x', label=name+'_real', color = colors[name])
                 ax_2d.plot(y, z, '-o', label=name, color = colors[name])
             
-        if saveimgs:
+        if saveImgs:
             file_name = exp_dir.split('/')[-1]
-            new_folder_3d = 'results/km_3d/'+file_name.replace('.pkl','/')
-            new_folder_2d = 'results/km_'+plane+'/'+file_name.replace('.pkl','/')
+            new_folder_3d = 'results/'+file_name.replace('.pkl','/')+dir_name+'_3d/'
+            new_folder_2d = 'results/'+file_name.replace('.pkl','/')+dir_name+'_'+plane+'/'
             if not os.path.exists(new_folder_3d):
                 os.makedirs(new_folder_3d)
             if not os.path.exists(new_folder_2d):
@@ -298,99 +310,118 @@ def plot_legs_from_angles(angles,data_dict,exp_dir,begin=0,end=0,plane='xz',save
             fig_3d.savefig(name_3d)
             view_2d.savefig(name_2d)
 
-        if saveimgs:
-            plt.close()
-        else:
-            plt.show()
+        if not saveImgs:
+            ax_3d.legend()
+            view_2d.legend()
+            if pause:
+                plt.show()
+            else:
+                plt.show(block=False)
+                plt.pause(0.001)
 
-    '''        
-        for name, leg in angles.items():
+        fig_3d.clf()
+        view_2d.clf()
+
+    plt.close()
+
+
+def plot_correlation_matrix(angles,roll_tr,align):
+    for name, leg in angles.items():
+        claw_h = align[name]['Claw']['raw_pos_aligned'].transpose()[2]
+        tarsus_h = align[name]['Tarsus']['raw_pos_aligned'].transpose()[2]
+        tibia_h = align[name]['Tibia']['raw_pos_aligned'].transpose()[2]
+        
+        r = np.corrcoef([roll_tr[name]['best_roll'], claw_h, tarsus_h, tibia_h, leg['yaw'], leg['pitch'], leg['roll'], leg['th_fe'], leg['th_ti'], leg['th_ta']])
+
+        labels = ['roll_tr']+list(leg.keys())
+        
+        plot_heatmap(r,labels,name)
+
+def plot_heatmap(corr, labels,title):
+
+    ax = sns.heatmap( 
+        corr,  
+        #vmin=-1, vmax=1, center=0, 
+        annot=True, 
+        xticklabels = labels,
+        yticklabels = labels, 
+        #cmap = 'seismic' 
+        )
+    plt.title(title)
+    plt.show()
+
+def calculate_svm_from_angles(angles, diff,align):
+  
+    #angles=np.load('angles.pkl',allow_pickle=True)  
+    #diff=np.load('diff_general.pkl',allow_pickle=True)  
+        
+    #name = 'LF_leg' 
+    #name2 = 'RF_leg' 
+    mat=np.zeros((len(angles.keys()),len(angles.keys()))) 
+    
+    for i, (name, leg) in enumerate(angles.items()):   
+        claw_h = align[name]['Claw']['raw_pos_aligned'].transpose()[2]  
+        tarsus_h = align[name]['Tarsus']['raw_pos_aligned'].transpose()[2] 
+    
+        tibia_h = align[name]['Tibia']['raw_pos_aligned'].transpose()[2]  
+        yaw = angles[name]['yaw'] 
+        pitch = angles[name]['pitch'] 
+        roll = angles[name]['roll'] 
+        th_fe = angles[name]['th_fe'] 
+        th_ti = angles[name]['th_ti'] 
+        th_ta = angles[name]['th_ta'] 
+        X = np.array([claw_h, tarsus_h, tibia_h, roll, th_fe]) 
+        y = np.array(diff[name]['best_roll']) 
+        clf = svm.SVR() 
+        clf.fit(X.T,y) 
+     
+        for j, (name2, leg) in enumerate(angles.items()):  
+        
+            claw_h = align[name2]['Claw']['raw_pos_aligned'].transpose()[2]
+      
+            tarsus_h = align[name2]['Tarsus']['raw_pos_aligned'].transpose()[2]
+            tibia_h = align[name2]['Tibia']['raw_pos_aligned'].transpose()[2]   
+            yaw = angles[name2]['yaw']  
+            pitch = angles[name2]['pitch']  
+            roll = angles[name2]['roll']  
+            th_fe = angles[name2]['th_fe']  
+            th_ti = angles[name2]['th_ti']  
+            th_ta = angles[name2]['th_ta']  
+            X2 = np.array([claw_h, tarsus_h, tibia_h, roll, th_fe])  
+            y_real = np.array(diff[name2]['best_roll']) 
             
-            if 'LF' in name:
-                roll = leg['roll'][frame]
-                roll_tr = np.deg2rad(-15)
-            elif 'RF' in name:
-                roll = leg['roll'][frame]
-                roll_tr = np.deg2rad(13)
-            elif 'LM' in name:
-                roll = - (np.pi/2 + leg['roll'][frame])
-                roll_tr = np.deg2rad(-20)
-            elif 'LH' in name:
-                roll = - (np.pi/2 + leg['roll'][frame])
-                roll_tr = np.deg2rad(-5)
-            elif 'RM' in name:
-                roll = np.pi/2 + leg['roll'][frame]
-                roll_tr = np.deg2rad(18)
-            elif 'RH' in name:
-                roll = np.pi/2 + leg['roll'][frame]
-                roll_tr = np.deg2rad(5)
-                    
-            r1 = R.from_euler('zyx',[roll,leg['pitch'][frame],leg['yaw'][frame]])
-            r2 = R.from_euler('zyx',[roll_tr,leg['th_fe'][frame],0])
-            r3 = R.from_euler('y',leg['th_ti'][frame])
-            r4 = R.from_euler('y',leg['th_ta'][frame])
+            y_pred = clf.predict(X2.T) 
+            mse = mean_squared_error(y_real,y_pred) 
+            rmse = np.sqrt(mse)*180/np.pi 
+            mat[i][j] = rmse 
+            print(name + ' to ' + name2, rmse) 
+        print()
 
-            coxa_pos = data_dict[name]['Coxa']['fixed_pos_aligned']
-            real_pos_femur = data_dict[name]['Femur']['raw_pos_aligned'][frame]
-            real_pos_tibia = data_dict[name]['Tibia']['raw_pos_aligned'][frame]
-            real_pos_tarsus = data_dict[name]['Tarsus']['raw_pos_aligned'][frame]
-            real_pos_claw = data_dict[name]['Claw']['raw_pos_aligned'][frame]
-            
-            l_coxa = data_dict[name]['Coxa']['mean_length']#np.linalg.norm(coxa_pos-real_pos_femur)#
-            l_femur = data_dict[name]['Femur']['mean_length']#np.linalg.norm(real_pos_femur-real_pos_tibia)#
-            l_tibia = data_dict[name]['Tibia']['mean_length']#np.linalg.norm(real_pos_tibia-real_pos_tarsus)#
-            l_tarsus = data_dict[name]['Tarsus']['mean_length']#np.linalg.norm(real_pos_tarsus-real_pos_claw)#
-            
-            fe_init_pos = np.array([0,0,-l_coxa])
-            ti_init_pos = np.array([0,0,-l_femur])
-            ta_init_pos = np.array([0,0,-l_tibia])
-            claw_init_pos = np.array([0,0,-l_tarsus])
+    plot_heatmap(mat,list(angles.keys()),'RMSE')
 
-            femur_pos = r1.apply(fe_init_pos) + coxa_pos
-            tibia_pos = r1.apply(r2.apply(ti_init_pos)) + femur_pos            
-            tarsus_pos = r1.apply(r2.apply(r3.apply(ta_init_pos))) + tibia_pos
-            claw_pos = r1.apply(r2.apply(r3.apply(r4.apply(claw_init_pos)))) + tarsus_pos
+def plot_error(errors_dict):
+    legs = list(errors_dict.keys())
+    angles = list(errors_dict['LF_leg'].keys())
+    df_errors = pd.DataFrame()
 
-            pos_3d = np.array([coxa_pos,femur_pos,tibia_pos,tarsus_pos,claw_pos]).transpose()
-            x = pos_3d[0]
-            y = pos_3d[1]
-            z = pos_3d[2]
-            ax_3d.plot(x, y, z, '-o', label=name, color = colors[name])
+    colors = [(204/255,0,0),(1,51/255,51/255),(1,102/255,102/255),(0,76/255,153/255),(0,0.5,1),(102/255,178/255,1)]
 
-            
+    for leg in legs:
+        for angle in angles:
+            vals = []
+            for err in errors_dict[leg][angle]['min_error']:
+                vals.append(err[0])
 
-            real_pos_3d = np.array([coxa_pos,real_pos_femur,real_pos_tibia,real_pos_tarsus,real_pos_claw]).transpose()
-            real_x = real_pos_3d[0]
-            real_y = real_pos_3d[1]
-            real_z = real_pos_3d[2]
-            ax_3d.plot(real_x, real_y, real_z, '--x', label=name+'_real', color = colors_real[name])
+            df_vals = pd.DataFrame(vals,columns=['error (mm)'])
+            df_vals['leg'] = leg
+            df_vals['angle'] = angle
 
-            if plane == 'xy':
-                ax_2d.plot(real_x, real_y, '--x', label=name+'_real', color = colors_real[name])
-                ax_2d.plot(x, y, '-o', label=name, color = colors[name])
-            if plane == 'xz':
-                ax_2d.plot(real_x, real_z, '--x', label=name+'_real', color = colors_real[name])
-                ax_2d.plot(x, z, '-o', label=name, color = colors[name])
-            if plane == 'yz':
-                ax_2d.plot(real_y, real_z, '--x', label=name+'_real', color = colors_real[name])
-                ax_2d.plot(y, z, '-o', label=name, color = colors[name])
-            
-        if saveimgs:
-            file_name = exp_dir.split('/')[-1]
-            new_folder_3d = 'results/km_3d/'+file_name.replace('.pkl','/')
-            new_folder_2d = 'results/km_'+plane+'/'+file_name.replace('.pkl','/')
-            if not os.path.exists(new_folder_3d):
-                os.makedirs(new_folder_3d)
-            if not os.path.exists(new_folder_2d):
-                os.makedirs(new_folder_2d)
-            name_3d = new_folder_3d + 'km_3d' + '_img_' + '{:06}'.format(frame) + '.jpg'
-            name_2d = new_folder_2d + 'km_' + plane + '_img_' + '{:06}'.format(frame) + '.jpg'
-            fig_3d.savefig(name_3d)
-            view_2d.savefig(name_2d)
-
-        if saveimgs:
-            plt.close()
-        else:
-            plt.show()
-
-    '''
+            df_errors = df_errors.append(df_vals, ignore_index = True)
+        
+    ax = sns.violinplot(x='angle', y='error (mm)', data=df_errors, color="0.8")
+    for violin, alpha in zip(ax.collections[::2], [0.7,0.7,0.7,0.7,0.7,0.7,0.7]):
+        violin.set_alpha(alpha)
+    ax = sns.stripplot(x='angle', y='error (mm)', hue='leg', data=df_errors, jitter=True, zorder=0, palette = colors,size=2)
+    plt.show()
+    
+    return df_errors
