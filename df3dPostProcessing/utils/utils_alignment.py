@@ -5,6 +5,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from scipy.spatial.transform import Rotation as R
 
 def align_data(exp_dict):
+    exp_dict = default_order_of_axis(exp_dict)
     fix = fixed_lengths_and_base_point(exp_dict)
     align = align_model(fix)
     
@@ -282,3 +283,217 @@ def draw_lines(img, start, end, color = (255, 0, 0)):
     cv.line(img, start_point, end_point, color, thickness) 
 
     return img
+
+
+def default_order_of_axis(exp_dict): 
+    """
+    Reorders the and mirrors the axis to retrieve the
+    original orientation as give by df3d. This is necessary
+    because some versions of df3d automatically mirror and swap
+    axes to make visualization easier.
+
+    Parameters
+    ----------
+    exp_dict : dictionary
+        This dictionary holds all the raw joint positions.
+
+    Returns
+    -------
+    exp_dict : dictionary
+        Dictionary with reordered axes and mirrored axes.
+    """
+    coxa_points = []
+    claw_points = []
+    for leg, leg_data in exp_dict.items():
+        for joint, joint_data in leg_data.items():
+            if joint == "Coxa":
+                coxa_points.append(joint_data)
+            if joint == "Claw":
+                claw_points.append(joint_data)
+
+    coxa_points = np.array(coxa_points)
+    claw_point = np.array(claw_points)
+
+    coxa_points_for_svd = coxa_points.reshape((-1, 3))
+    centroid = np.mean(coxa_points_for_svd, axis=0)
+    coxa_points_for_svd = coxa_points_for_svd - centroid
+    U, S, VT = np.linalg.svd(np.transpose(coxa_points_for_svd))
+    second_axis = np.argmax(np.abs(U[:, 2]))
+
+    mirror_factors = np.ones(3)
+    
+    # Check for flip of second axis
+    claw_points = np.mean(claw_points, axis=1)
+    if np.mean(np.mean(coxa_points, axis=1)[:, second_axis] > claw_points[:, second_axis]) > 0.5:
+        mirror_factors[1] = -1
+    
+    remaining_axes = [i for i in range(3) if i != second_axis]
+    
+    left_side_remaining_axis_0 = np.mean(coxa_points[(0, 1, 2), :, remaining_axes[0]], axis=1)
+    right_side_remaining_axis_0 = np.mean(coxa_points[(3, 4, 5), :, remaining_axes[0]], axis=1)
+    left_side_remaining_axis_1 = np.mean(coxa_points[(0, 1, 2), :, remaining_axes[1]], axis=1)
+    right_side_remaining_axis_1 = np.mean(coxa_points[(3, 4, 5), :, remaining_axes[1]], axis=1)
+
+    if (
+        np.all(left_side_remaining_axis_0 > right_side_remaining_axis_0) and 
+        np.all(left_side_remaining_axis_1 > right_side_remaining_axis_1)
+       ):
+        
+        if (
+            np.all(np.diff(left_side_remaining_axis_0) < 0) and 
+            np.all(np.diff(left_side_remaining_axis_1) > 0) and 
+            np.all(np.diff(right_side_remaining_axis_0) < 0) and 
+            np.all(np.diff(right_side_remaining_axis_1) > 0)
+           ):
+            first_axis = remaining_axes[0]
+            third_axis = remaining_axes[1]
+        elif (
+            np.all(np.diff(left_side_remaining_axis_0) > 0) and 
+            np.all(np.diff(left_side_remaining_axis_1) < 0) and 
+            np.all(np.diff(right_side_remaining_axis_0) > 0) and 
+            np.all(np.diff(right_side_remaining_axis_1) < 0)
+           ):
+            first_axis = remaining_axes[1]
+            third_axis = remaining_axes[0]
+        elif (
+              np.all(np.diff(left_side_remaining_axis_0) < 0) and
+              np.all(np.diff(left_side_remaining_axis_1) < 0) and 
+              np.all(np.diff(right_side_remaining_axis_0) < 0) and 
+              np.all(np.diff(right_side_remaining_axis_1) < 0)
+             ): 
+            first_axis = remaining_axes[1]
+            third_axis = remaining_axes[0]
+        else:
+            raise ValueError("Can not determine correct order of axis.")
+    elif (
+          np.all(left_side_remaining_axis_0 < right_side_remaining_axis_0) and 
+          np.all(left_side_remaining_axis_1 < right_side_remaining_axis_1)
+         ):
+        if (
+            np.all(np.diff(left_side_remaining_axis_0) < 0) and 
+            np.all(np.diff(left_side_remaining_axis_1) > 0) and 
+            np.all(np.diff(right_side_remaining_axis_0) < 0) and 
+            np.all(np.diff(right_side_remaining_axis_1) > 0)
+           ):
+            # fixed for [[ 0. -1.  0.], [ 0.  0. -1.], [-1.  0.  0.]]
+            first_axis = remaining_axes[1]
+            third_axis = remaining_axes[0]
+            mirror_factors[0] = -1
+            mirror_factors[2] = -1
+        elif (
+            np.all(np.diff(left_side_remaining_axis_0) > 0) and 
+            np.all(np.diff(left_side_remaining_axis_1) < 0) and 
+            np.all(np.diff(right_side_remaining_axis_0) > 0) and 
+            np.all(np.diff(right_side_remaining_axis_1) < 0)
+           ):
+            # fixed for [[-1.  0.  0.], [ 0. -1.  0.], [ 0.  0. -1.]]
+            first_axis = remaining_axes[0]
+            third_axis = remaining_axes[1]
+            mirror_factors[0] = -1
+            mirror_factors[2] = -1
+        elif (
+              np.all(np.diff(left_side_remaining_axis_0) < 0) and
+              np.all(np.diff(left_side_remaining_axis_1) < 0) and 
+              np.all(np.diff(right_side_remaining_axis_0) < 0) and 
+              np.all(np.diff(right_side_remaining_axis_1) < 0)
+             ): 
+            first_axis = remaining_axes[1]
+            third_axis = remaining_axes[0]
+        else:
+            raise ValueError("Can not determine correct order of axis.")
+    elif (
+          np.all(left_side_remaining_axis_0 < right_side_remaining_axis_0) and 
+          np.all(left_side_remaining_axis_1 > right_side_remaining_axis_1)
+         ):
+        if (
+            np.all(np.diff(left_side_remaining_axis_0) < 0) and 
+            np.all(np.diff(left_side_remaining_axis_1) > 0) and 
+            np.all(np.diff(right_side_remaining_axis_0) < 0) and 
+            np.all(np.diff(right_side_remaining_axis_1) > 0)
+           ):
+            first_axis = remaining_axes[0]
+            third_axis = remaining_axes[1]
+        elif (
+            np.all(np.diff(left_side_remaining_axis_0) > 0) and 
+            np.all(np.diff(left_side_remaining_axis_1) < 0) and 
+            np.all(np.diff(right_side_remaining_axis_0) > 0) and 
+            np.all(np.diff(right_side_remaining_axis_1) < 0)
+           ):
+            first_axis = remaining_axes[1]
+            third_axis = remaining_axes[0]
+        elif (
+              np.all(np.diff(left_side_remaining_axis_0) < 0) and
+              np.all(np.diff(left_side_remaining_axis_1) < 0) and 
+              np.all(np.diff(right_side_remaining_axis_0) < 0) and 
+              np.all(np.diff(right_side_remaining_axis_1) < 0)
+             ): 
+            # fixed for [[0. 1. 0.], [1. 0. 0.], [0. 0. 1.]]
+            first_axis = remaining_axes[1]
+            third_axis = remaining_axes[0]
+            mirror_factors[2] = -1
+        elif (
+              np.all(np.diff(left_side_remaining_axis_0) > 0) and
+              np.all(np.diff(left_side_remaining_axis_1) > 0) and 
+              np.all(np.diff(right_side_remaining_axis_0) > 0) and 
+              np.all(np.diff(right_side_remaining_axis_1) > 0)
+             ): 
+            # fixed for [[-1.  0.  0.], [ 0. -1.  0.], [ 0.  0.  1.]]
+            first_axis = remaining_axes[0]
+            third_axis = remaining_axes[1]
+            mirror_factors[0] = -1
+        else:
+            raise ValueError("Can not determine correct order of axis.")
+    elif (
+          np.all(left_side_remaining_axis_0 > right_side_remaining_axis_0) and 
+          np.all(left_side_remaining_axis_1 < right_side_remaining_axis_1)
+         ):
+        if (
+            np.all(np.diff(left_side_remaining_axis_0) < 0) and 
+            np.all(np.diff(left_side_remaining_axis_1) > 0) and 
+            np.all(np.diff(right_side_remaining_axis_0) < 0) and 
+            np.all(np.diff(right_side_remaining_axis_1) > 0)
+           ):
+            first_axis = remaining_axes[0]
+            third_axis = remaining_axes[1]
+        elif (
+            np.all(np.diff(left_side_remaining_axis_0) > 0) and 
+            np.all(np.diff(left_side_remaining_axis_1) < 0) and 
+            np.all(np.diff(right_side_remaining_axis_0) > 0) and 
+            np.all(np.diff(right_side_remaining_axis_1) < 0)
+           ):
+            first_axis = remaining_axes[1]
+            third_axis = remaining_axes[0]
+        elif (
+              np.all(np.diff(left_side_remaining_axis_0) < 0) and
+              np.all(np.diff(left_side_remaining_axis_1) < 0) and 
+              np.all(np.diff(right_side_remaining_axis_0) < 0) and 
+              np.all(np.diff(right_side_remaining_axis_1) < 0)
+             ): 
+            # fixed for [[ 1.  0.  0.], [ 0. -1.  0.], [ 0.  0. -1.]]
+            first_axis = remaining_axes[0]
+            third_axis = remaining_axes[1]
+            mirror_factors[2] = -1
+        elif (
+              np.all(np.diff(left_side_remaining_axis_0) > 0) and
+              np.all(np.diff(left_side_remaining_axis_1) > 0) and 
+              np.all(np.diff(right_side_remaining_axis_0) > 0) and 
+              np.all(np.diff(right_side_remaining_axis_1) > 0)
+             ): 
+            # fixed for [[ 0. -1.  0.], [ 0.  0. -1.], [ 1.  0.  0.]]
+            first_axis = remaining_axes[1]
+            third_axis = remaining_axes[0]
+            mirror_factors[0] = -1
+        else:
+            raise ValueError("Can not determine correct order of axis.")
+    else:
+        raise ValueError("Cannot determine correct order of axis.")
+    return _swap_axes_in_dict(exp_dict, (first_axis, second_axis, third_axis), mirror_factors)
+
+
+def _swap_axes_in_dict(exp_dict, axes_order, mirror_factors=[1, 1, 1]):
+    for leg, leg_data in exp_dict.items():
+        for joint, joint_data in leg_data.items():
+            processed_data = joint_data[:, axes_order]
+            processed_data = processed_data * mirror_factors
+            exp_dict[leg][joint] = processed_data
+    return exp_dict
