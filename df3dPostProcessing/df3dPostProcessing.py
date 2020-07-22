@@ -211,6 +211,7 @@ def angles_as_list(angles):
     angle_list.append(angles["LF_leg"]["roll"])
     angle_list.append(angles["LF_leg"]["th_fe"])
     angle_list.append(angles["LF_leg"]["th_ti"])
+    angle_list.append(angles["LF_leg"]["roll_tr"])
     angle_list.append(angles["LF_leg"]["th_ta"])
     
     angle_list.append(angles["LM_leg"]["yaw"])
@@ -218,6 +219,7 @@ def angles_as_list(angles):
     angle_list.append(angles["LM_leg"]["roll"])
     angle_list.append(angles["LM_leg"]["th_fe"])
     angle_list.append(angles["LM_leg"]["th_ti"])
+    angle_list.append(angles["LM_leg"]["roll_tr"])
     angle_list.append(angles["LM_leg"]["th_ta"])
     
     angle_list.append(angles["LH_leg"]["yaw"])
@@ -225,6 +227,7 @@ def angles_as_list(angles):
     angle_list.append(angles["LH_leg"]["roll"])
     angle_list.append(angles["LH_leg"]["th_fe"])
     angle_list.append(angles["LH_leg"]["th_ti"])
+    angle_list.append(angles["LH_leg"]["roll_tr"])
     angle_list.append(angles["LH_leg"]["th_ta"])
     
     angle_list.append(angles["RF_leg"]["yaw"])
@@ -232,6 +235,7 @@ def angles_as_list(angles):
     angle_list.append(angles["RF_leg"]["roll"])
     angle_list.append(angles["RF_leg"]["th_fe"])
     angle_list.append(angles["RF_leg"]["th_ti"])
+    angle_list.append(angles["RF_leg"]["roll_tr"])
     angle_list.append(angles["RF_leg"]["th_ta"])
     
     angle_list.append(angles["RM_leg"]["yaw"])
@@ -239,6 +243,7 @@ def angles_as_list(angles):
     angle_list.append(angles["RM_leg"]["roll"])
     angle_list.append(angles["RM_leg"]["th_fe"])
     angle_list.append(angles["RM_leg"]["th_ti"])
+    angle_list.append(angles["RM_leg"]["roll_tr"])
     angle_list.append(angles["RM_leg"]["th_ta"])
     
     angle_list.append(angles["RH_leg"]["yaw"])
@@ -246,6 +251,7 @@ def angles_as_list(angles):
     angle_list.append(angles["RH_leg"]["roll"])
     angle_list.append(angles["RH_leg"]["th_fe"])
     angle_list.append(angles["RH_leg"]["th_ti"])
+    angle_list.append(angles["RH_leg"]["roll_tr"])
     angle_list.append(angles["RH_leg"]["th_ta"])
 
     angle_list = np.array(angle_list)
