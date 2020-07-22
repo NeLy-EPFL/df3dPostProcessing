@@ -7,6 +7,11 @@ from sklearn.metrics import mean_squared_error
 from sklearn import svm
 from . import utils_angles
 import pandas as pd
+from scipy import stats
+from statsmodels.stats import weightstats as stests
+from .utils_angles import calculate_forward_kinematics
+from ikpy.chain import Chain 
+from ikpy.link import OriginLink, URDFLink
 
 
 def plot_angles(angles,key,degrees=True):
@@ -211,7 +216,7 @@ def plot_pos_series(data_dict, legs, joints, savePlot=False, gen = 'fly'):
                 plt.show()
 
 
-def plot_legs_from_angles(angles,data_dict,exp_dir,begin=0,end=0,plane='xz',saveImgs = False, dir_name='km', roll_tr_angles = {}, roll_tr = False, pause = False):
+def plot_legs_from_angles(angles,data_dict,exp_dir,begin=0,end=0,plane='xz',saveImgs = False, dir_name='km', roll_tr_angles = {}, ik_angles = False, pause = False):
 
     #colors_real= {'LF_leg':(1,0,0),'LM_leg':(0,1,0),'LH_leg':(0,0,1),'RF_leg':(1,1,0),'RM_leg':(1,0,1),'RH_leg':(0,1,1)}
     #colors = {'LF_leg':(1,0.5,0.5),'LM_leg':(0.5,1,0.5),'LH_leg':(0.5,0.5,1),'RF_leg':(1,1,0.5),'RM_leg':(1,0.5,1),'RH_leg':(0.5,1,1)}
@@ -251,23 +256,12 @@ def plot_legs_from_angles(angles,data_dict,exp_dir,begin=0,end=0,plane='xz',save
             if roll_tr_angles:
                 roll_tr_best = roll_tr_angles[name]['roll_tr'][frame]
             else:
-                if roll_tr:
-                    if 'LF' in name:
-                        roll_tr_best = np.deg2rad(-15)
-                    elif 'LM' in name:
-                        roll_tr_best = np.deg2rad(-20)
-                    elif 'LH' in name:
-                        roll_tr_best = np.deg2rad(-5)
-                    elif 'RF' in name:
-                        roll_tr_best = np.deg2rad(13)
-                    elif 'RM' in name:
-                        roll_tr_best = np.deg2rad(18)
-                    elif 'RH' in name:
-                        roll_tr_best = np.deg2rad(5)
-                else:
-                    roll_tr_best = 0    
+                roll_tr_best = 0
 
-            pos_3d = utils_angles.calculate_forward_kinematics(name, frame, leg, data_dict,extraDOF={'roll_tr':roll_tr_best}).transpose()
+            if ik_angles:
+                pos_3d = fk_from_ik(leg, name, data_dict, frame).transpose()
+            else:
+                pos_3d = utils_angles.calculate_forward_kinematics(name, frame, leg, data_dict, extraDOF={'roll_tr':roll_tr_best},ik_angles=ik_angles).transpose()
 
                       
             x = pos_3d[0]
@@ -417,11 +411,314 @@ def plot_error(errors_dict):
             df_vals['angle'] = angle
 
             df_errors = df_errors.append(df_vals, ignore_index = True)
-        
+    
+    for angle1 in angles:
+        x1 = df_errors['error (mm)'].loc[df_errors['angle']==angle1]
+        print(angle1 + ' mean/std = ' + str(np.mean(x1)) + ' /+- ' + str(np.std(x1)))
+        for angle2 in angles[angles.index(angle1)+1:]:
+        #if angle != 'base':            
+            x2 = df_errors['error (mm)'].loc[df_errors['angle']==angle2]
+            ztest , pval = stests.ztest(x1, x2=x2, value=0, alternative='two-sided')
+
+            print(angle1 + ' vs ' + angle2 + ': ', ztest, pval,)
+            if pval > 0.001:
+                print(angle1 + " is not statistically different from " + angle2)
+        print()
+    
     ax = sns.violinplot(x='angle', y='error (mm)', data=df_errors, color="0.8")
-    for violin, alpha in zip(ax.collections[::2], [0.7,0.7,0.7,0.7,0.7,0.7,0.7]):
+    for violin, alpha in zip(ax.collections[::2], [0.7]*len(angles)):
         violin.set_alpha(alpha)
-    ax = sns.stripplot(x='angle', y='error (mm)', hue='leg', data=df_errors, jitter=True, zorder=0, palette = colors,size=2)
+    ax = sns.stripplot(x='angle', y='error (mm)', hue='leg', data=df_errors, jitter=True, zorder=0, palette = colors,size=3)
+    ax.legend(loc='upper right', bbox_to_anchor=(1.1, 1))
+    plt.title('Comparison adding an extra DOF')
     plt.show()
     
     return df_errors
+
+def calculate_inverse_kinematics(data_dict, init_angles=[],roll_tr=False):
+    angles_ik = {}
+    
+    for name, leg in data_dict.items():
+        if roll_tr:
+            angles_ik[name]={'roll':[],'pitch':[],'yaw':[],'th_fe':[],'roll_tr':[],'th_ti':[],'th_ta':[]}
+        else:
+            angles_ik[name]={'roll':[],'pitch':[],'yaw':[],'th_fe':[],'th_ti':[],'th_ta':[]}
+        l_coxa = leg['Coxa']['mean_length']
+        l_femur = leg['Femur']['mean_length']
+        l_tibia = leg['Tibia']['mean_length']
+        l_tarsus = leg['Tarsus']['mean_length']
+        coxa_pos = leg['Coxa']['fixed_pos_aligned']
+
+        leg_chain = create_kinematic_chain(name,l_coxa,l_femur,l_tibia,l_tarsus,roll_tr)
+
+        if not init_angles:
+            init_pos = [0]*len(leg_chain.links)
+        else:
+            init_pos = [0]
+            for key in angles_ik[name].keys():
+                if 'roll' in key and '_tr' not in key:
+                    if 'LM' in name or 'LH' in name:
+                        init_pos.append(-(np.pi/2 + init_angles[name][key][0]))
+                    elif 'RM' in name or 'RH' in name:
+                        init_pos.append((np.pi/2 + init_angles[name][key][0]))
+                    else:
+                        init_pos.append(init_angles[name][key][0])
+                else:
+                    init_pos.append(init_angles[name][key][0])
+            init_pos.append(0)
+
+        for i, pos in enumerate(leg['Claw']['raw_pos_aligned']):
+            print('\r'+name+' frame: '+str(i),end='')
+            pos_norm = pos - coxa_pos
+            angles = leg_chain.inverse_kinematics(pos_norm,initial_position=init_pos)
+            angles_ik[name]['roll'].append(angles[1])
+            angles_ik[name]['pitch'].append(angles[2])
+            angles_ik[name]['yaw'].append(angles[3])
+            angles_ik[name]['th_fe'].append(angles[4])
+            if roll_tr:
+                angles_ik[name]['roll_tr'].append(angles[5])
+                angles_ik[name]['th_ti'].append(angles[6])
+                angles_ik[name]['th_ta'].append(angles[7])
+            else:
+                angles_ik[name]['th_ti'].append(angles[5])
+                angles_ik[name]['th_ta'].append(angles[6])
+
+    return angles_ik
+
+def create_kinematic_chain(name,l_co,l_fe,l_ti,l_ta,roll_tr = False):
+    if roll_tr:
+        leg_chain = Chain(name=name, links=[ 
+        OriginLink(), 
+        URDFLink( 
+          name="CoxaRoll", 
+          translation_vector=[0, 0, 0], 
+          orientation=[0, 0, 0], 
+          rotation=[0, 0, 1], 
+        ), 
+        URDFLink( 
+          name="CoxaPitch", 
+          translation_vector=[0, 0, 0], 
+          orientation=[0, 0, 0], 
+          rotation=[0, 1, 0], 
+        ), 
+        URDFLink(  
+          name="CoxaYaw",  
+          translation_vector=[0, 0, 0],  
+          orientation=[0, 0, 0],  
+          rotation=[1, 0, 0],  
+        ), 
+        URDFLink(  
+          name="th_fe",  
+          translation_vector=[0, 0, -l_co],  
+          orientation=[0, 0, 0],  
+          rotation=[0, 1, 0],  
+        ),
+        URDFLink(  
+          name="roll_tr",  
+          translation_vector=[0, 0, 0],  
+          orientation=[0, 0, 0],  
+          rotation=[1, 0, 0],  
+        ),
+        URDFLink(  
+          name="th_ti",  
+          translation_vector=[0, 0, -l_fe],  
+          orientation=[0, 0, 0],  
+          rotation=[0, 1, 0],  
+        ), 
+        URDFLink( 
+          name="th_ta", 
+          translation_vector=[0, 0, -l_ti], 
+          orientation=[0, 0, 0], 
+          rotation=[0, 1, 0], 
+        ), 
+        URDFLink(  
+          name="Claw",  
+          translation_vector=[0, 0, -l_ta],  
+          orientation=[0, 0, 0],  
+          rotation=[0, 0, 0],  
+        ), 
+        ])
+    else:
+        leg_chain = Chain(name=name, links=[ 
+        OriginLink(), 
+        URDFLink( 
+          name="CoxaRoll", 
+          translation_vector=[0, 0, 0], 
+          orientation=[0, 0, 0], 
+          rotation=[0, 0, 1], 
+        ), 
+        URDFLink( 
+          name="CoxaPitch", 
+          translation_vector=[0, 0, 0], 
+          orientation=[0, 0, 0], 
+          rotation=[0, 1, 0], 
+        ), 
+        URDFLink(  
+          name="CoxaYaw",  
+          translation_vector=[0, 0, 0],  
+          orientation=[0, 0, 0],  
+          rotation=[1, 0, 0],  
+        ), 
+        URDFLink(  
+          name="th_fe",  
+          translation_vector=[0, 0, -l_co],  
+          orientation=[0, 0, 0],  
+          rotation=[0, 1, 0],  
+        ),
+        URDFLink(  
+          name="th_ti",  
+          translation_vector=[0, 0, -l_fe],  
+          orientation=[0, 0, 0],  
+          rotation=[0, 1, 0],  
+        ), 
+        URDFLink( 
+          name="th_ta", 
+          translation_vector=[0, 0, -l_ti], 
+          orientation=[0, 0, 0], 
+          rotation=[0, 1, 0], 
+        ), 
+        URDFLink(  
+          name="Claw",  
+          translation_vector=[0, 0, -l_ta],  
+          orientation=[0, 0, 0],  
+          rotation=[0, 0, 0],  
+        ), 
+        ])
+
+    return leg_chain
+
+def fk_from_ik(leg, name, data_dict, frame, roll_tr = False):
+
+    l_coxa = data_dict[name]['Coxa']['mean_length']
+    l_femur = data_dict[name]['Femur']['mean_length']
+    l_tibia = data_dict[name]['Tibia']['mean_length']
+    l_tarsus = data_dict[name]['Tarsus']['mean_length']
+
+    leg_chain = create_kinematic_chain(name,l_coxa,l_femur,l_tibia,l_tarsus,roll_tr)
+    
+    if roll_tr:
+        vect = [0,leg['roll'][frame],leg['pitch'][frame],leg['yaw'][frame],leg['th_fe'][frame],leg['roll_tr'][frame],leg['th_ti'][frame],leg['th_ta'][frame],0]
+    else:
+        vect = [0,leg['roll'][frame],leg['pitch'][frame],leg['yaw'][frame],leg['th_fe'][frame],leg['th_ti'][frame],leg['th_ta'][frame],0]
+
+    pred = leg_chain.forward_kinematics(vect,full_kinematics=True)
+
+    fe_init_pos = np.array([0,0,-l_coxa,1])
+    ti_init_pos = np.array([0,0,-l_femur,1])
+    ta_init_pos = np.array([0,0,-l_tibia,1])
+    claw_init_pos = np.array([0,0,-l_tarsus,1])
+
+    real_pos_coxa = data_dict[name]['Coxa']['fixed_pos_aligned']
+    pred_coxa =  pred[3].transpose()[3][:3] + real_pos_coxa
+    pred_femur =  pred[4].transpose()[3][:3] + real_pos_coxa
+    pred_tibia = pred[5].transpose()[3][:3] + real_pos_coxa
+    pred_tarsus = pred[6].transpose()[3][:3] + real_pos_coxa
+    pred_claw = pred[7].transpose()[3][:3] + real_pos_coxa
+    
+    pred_pos = np.array([pred_coxa,pred_femur,pred_tibia,pred_tarsus,pred_claw])
+
+    return pred_pos
+
+
+def calculate_min_error(angles,data_dict,begin=0,end=0,extraDOF = ['base'],legs_to_check=[]):
+    #extraKeys = ['roll_tr','yaw_tr','roll_ti','yaw_ti','roll_ta','yaw_ta']
+
+    errors_dict = {}
+    
+    if end == 0:
+        end = len(angles['LF_leg']['yaw'])
+
+    for frame in range(begin, end):
+        print('\rFrame: '+str(frame),end='')
+
+        for name, leg in angles.items():
+
+            if legs_to_check:
+                if not name in legs_to_check:
+                    break
+                
+            if not name in errors_dict.keys():
+                errors_dict[name] = dict.fromkeys(extraDOF)
+
+            for key in extraDOF:
+                if not errors_dict[name][key]:
+                    errors_dict[name][key] = {'min_error':[],'best_angle':[]}
+                
+                #coxa_pos = data_dict[name]['Coxa']['fixed_pos_aligned']
+                real_pos_femur = data_dict[name]['Femur']['raw_pos_aligned'][frame]
+                real_pos_tibia = data_dict[name]['Tibia']['raw_pos_aligned'][frame]
+                real_pos_tarsus = data_dict[name]['Tarsus']['raw_pos_aligned'][frame]
+                real_pos_claw = data_dict[name]['Claw']['raw_pos_aligned'][frame]
+            
+                min_error = [100000000,0,0,0,0]
+                best_angle = 0
+                if key == 'base':
+                    pos_3d = calculate_forward_kinematics(name, frame, leg, data_dict)
+                    #pos_3d = calculate_forward_kinematics(name, frame, leg, data_dict,extraDOF={'roll_tr':angles[name]['roll_tr'][frame]})
+
+                    d_fe = np.linalg.norm(pos_3d[1]-real_pos_femur)
+                    d_ti = np.linalg.norm(pos_3d[2]-real_pos_tibia) 
+                    d_ta = np.linalg.norm(pos_3d[3]-real_pos_tarsus)
+                    d_claw = np.linalg.norm(pos_3d[4]-real_pos_claw)
+
+                    d_tot = d_fe + d_ti + d_ta + d_claw
+                           
+                    errors_dict[name][key]['min_error'].append([d_tot,d_fe,d_ti,d_ta,d_claw])
+                elif key == 'base_rollTr':
+                    #pos_3d = calculate_forward_kinematics(name, frame, leg, data_dict)
+                    pos_3d = calculate_forward_kinematics(name, frame, leg, data_dict,extraDOF={'roll_tr':angles[name]['roll_tr'][frame]})
+
+                    d_fe = np.linalg.norm(pos_3d[1]-real_pos_femur)
+                    d_ti = np.linalg.norm(pos_3d[2]-real_pos_tibia) 
+                    d_ta = np.linalg.norm(pos_3d[3]-real_pos_tarsus)
+                    d_claw = np.linalg.norm(pos_3d[4]-real_pos_claw)
+
+                    d_tot = d_fe + d_ti + d_ta + d_claw
+                           
+                    errors_dict[name][key]['min_error'].append([d_tot,d_fe,d_ti,d_ta,d_claw])
+                elif key == 'IK':
+                    pos_3d = fk_from_ik(leg, name, data_dict, frame)
+
+                    d_fe = np.linalg.norm(pos_3d[1]-real_pos_femur)
+                    d_ti = np.linalg.norm(pos_3d[2]-real_pos_tibia) 
+                    d_ta = np.linalg.norm(pos_3d[3]-real_pos_tarsus)
+                    d_claw = np.linalg.norm(pos_3d[4]-real_pos_claw)
+
+                    d_tot = d_fe + d_ti + d_ta + d_claw
+                           
+                    errors_dict[name][key]['min_error'].append([d_tot,d_fe,d_ti,d_ta,d_claw])
+                else:
+                    for i in range(-180, 180):
+                        extra_angle = np.deg2rad(i/2)
+                        extra_dict = {key:extra_angle}
+
+                        pos_3d = calculate_forward_kinematics(name, frame, leg, data_dict,extraDOF=extra_dict)
+
+                        d_fe = np.linalg.norm(pos_3d[1]-real_pos_femur)
+                        d_ti = np.linalg.norm(pos_3d[2]-real_pos_tibia) 
+                        d_ta = np.linalg.norm(pos_3d[3]-real_pos_tarsus)
+                        d_claw = np.linalg.norm(pos_3d[4]-real_pos_claw)
+
+                        d_tot = d_fe + d_ti + d_ta + d_claw
+
+                        if d_tot<min_error[0]:
+                            min_error = [d_tot,d_fe,d_ti,d_ta,d_claw]
+                            best_angle = extra_angle
+
+                    #print(frame,name,key)
+                    errors_dict[name][key]['min_error'].append(min_error)
+                    errors_dict[name][key]['best_angle'].append(best_angle)
+            
+    return errors_dict
+
+
+'''
+#####Reorder dictionary
+new_errors = {}                                       
+
+extraKeys = ['base','IK','roll_tr','yaw_tr','roll_ti','yaw_ti','roll_ta','yaw_ta'] 
+for name, leg in errors.items(): 
+    new_errors[name]={} 
+    for key in extraKeys: 
+        new_errors[name][key] = leg[key]
+'''

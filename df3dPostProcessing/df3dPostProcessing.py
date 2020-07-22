@@ -2,7 +2,7 @@ import numpy as np
 import os
 from .utils.utils_alignment import align_data, rescale_using_2d_data
 from .utils.utils_angles import calculate_angles
-from .utils.utils_plots import *
+#from .utils.utils_plots import *
 
 tracked_joints = ['LFCoxa',
                   'LFFemur',
