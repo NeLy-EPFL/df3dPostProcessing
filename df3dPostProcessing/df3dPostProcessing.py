@@ -1,6 +1,6 @@
 import numpy as np
 import os
-from .utils.utils_alignment import align_data, rescale_using_2d_data
+from .utils.utils_alignment import align_data, rescale_using_2d_data, fixed_lengths_and_base_point
 from .utils.utils_angles import calculate_angles
 #from .utils.utils_plots import *
 
@@ -258,3 +258,38 @@ def angles_as_list(angles):
     angle_list = np.swapaxes(angle_list, 0, 1)
     
     return angle_list
+
+
+def angle_list_to_dict(angles):
+    angle_dict = {}
+    current_index = 0
+    for leg in ["LF_leg", "LM_leg", "LH_leg", "RF_leg", "RM_leg", "RH_leg"]:
+        angle_dict[leg] = {}
+        for angle in ["yaw", "pitch", "roll", "th_fe", "th_ti", "roll_tr", "th_ta"]:
+            angle_dict[leg][angle] = angles[:, current_index]
+            current_index += 1
+    if current_index != angles.shape[1]:
+        raise ValueError("Second dimensions of angles matrix does not match the number of known angles.")
+    return angle_dict
+
+
+def algined_points_to_dict(data):
+    data_dict = load_data_to_dict(data)
+    data_dict = fixed_lengths_and_base_point(data_dict)
+    aligned_dict = {}
+    for leg, leg_data in data_dict.items():
+        if "leg" not in leg:
+            continue
+        aligned_dict[leg] = {}
+        for segment, segment_data in leg_data.items():
+            aligned_dict[leg][segment] = {}
+            try:
+                aligned_dict[leg][segment]["mean_length"] = segment_data["mean_length"]
+            except KeyError:
+                pass
+            segment_data = segment_data["raw_pos"]
+            if segment == "Coxa" and np.unique(segment_data, axis=0).shape[0] == 1:
+                aligned_dict[leg][segment]["fixed_pos_aligned"] = segment_data[0]
+            else:
+                aligned_dict[leg][segment]["raw_pos_aligned"] = segment_data
+    return aligned_dict
