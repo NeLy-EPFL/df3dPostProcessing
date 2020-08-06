@@ -273,7 +273,7 @@ def angle_list_to_dict(angles):
     return angle_dict
 
 
-def algined_points_to_dict(data):
+def aligned_points_to_dict(data):
     data_dict = load_data_to_dict(data)
     data_dict = fixed_lengths_and_base_point(data_dict)
     aligned_dict = {}
