@@ -136,6 +136,7 @@ def convert_to_df3d_output_format(aligned, fixed=True):
     n_timepoints = len(aligned["LF_leg"]["Femur"]["raw_pos_aligned"])
 
     points3D = []
+    column_names = []
 
     def upsample_fixed_coxa(points, n_timepoints):
         if points.ndim == 2:
@@ -144,120 +145,44 @@ def convert_to_df3d_output_format(aligned, fixed=True):
         points = np.repeat(points, n_timepoints, axis=0)
         return points
 
-    points3D.append(upsample_fixed_coxa(aligned["LF_leg"]["Coxa"][key], n_timepoints))
-    points3D.append(aligned["LF_leg"]["Femur"]["raw_pos_aligned"])
-    points3D.append(aligned["LF_leg"]["Tibia"]["raw_pos_aligned"])
-    points3D.append(aligned["LF_leg"]["Tarsus"]["raw_pos_aligned"])
-    points3D.append(aligned["LF_leg"]["Claw"]["raw_pos_aligned"])
+    missing_value_placeholder = np.zeros_like(aligned["LH_leg"]["Claw"]["raw_pos_aligned"]) * np.nan
 
-    points3D.append(upsample_fixed_coxa(aligned["LM_leg"]["Coxa"][key], n_timepoints))
-    points3D.append(aligned["LM_leg"]["Femur"]["raw_pos_aligned"])
-    points3D.append(aligned["LM_leg"]["Tibia"]["raw_pos_aligned"])
-    points3D.append(aligned["LM_leg"]["Tarsus"]["raw_pos_aligned"])
-    points3D.append(aligned["LM_leg"]["Claw"]["raw_pos_aligned"])
-
-    points3D.append(upsample_fixed_coxa(aligned["LH_leg"]["Coxa"][key], n_timepoints))
-    points3D.append(aligned["LH_leg"]["Femur"]["raw_pos_aligned"])
-    points3D.append(aligned["LH_leg"]["Tibia"]["raw_pos_aligned"])
-    points3D.append(aligned["LH_leg"]["Tarsus"]["raw_pos_aligned"])
-    points3D.append(aligned["LH_leg"]["Claw"]["raw_pos_aligned"])
-
-    # Left antenna
-    points3D.append(np.zeros_like(aligned["LH_leg"]["Claw"]["raw_pos_aligned"]) * np.nan)
-    # Left stripe 1
-    points3D.append(np.zeros_like(aligned["LH_leg"]["Claw"]["raw_pos_aligned"]) * np.nan)
-    # Left stripe 2
-    points3D.append(np.zeros_like(aligned["LH_leg"]["Claw"]["raw_pos_aligned"]) * np.nan)
-    # Left stripe 3
-    points3D.append(np.zeros_like(aligned["LH_leg"]["Claw"]["raw_pos_aligned"]) * np.nan)
-
-    points3D.append(upsample_fixed_coxa(aligned["RF_leg"]["Coxa"][key], n_timepoints))
-    points3D.append(aligned["RF_leg"]["Femur"]["raw_pos_aligned"])
-    points3D.append(aligned["RF_leg"]["Tibia"]["raw_pos_aligned"])
-    points3D.append(aligned["RF_leg"]["Tarsus"]["raw_pos_aligned"])
-    points3D.append(aligned["RF_leg"]["Claw"]["raw_pos_aligned"])
-
-    points3D.append(upsample_fixed_coxa(aligned["RM_leg"]["Coxa"][key], n_timepoints))
-    points3D.append(aligned["RM_leg"]["Femur"]["raw_pos_aligned"])
-    points3D.append(aligned["RM_leg"]["Tibia"]["raw_pos_aligned"])
-    points3D.append(aligned["RM_leg"]["Tarsus"]["raw_pos_aligned"])
-    points3D.append(aligned["RM_leg"]["Claw"]["raw_pos_aligned"])
-
-    points3D.append(upsample_fixed_coxa(aligned["RH_leg"]["Coxa"][key], n_timepoints))
-    points3D.append(aligned["RH_leg"]["Femur"]["raw_pos_aligned"])
-    points3D.append(aligned["RH_leg"]["Tibia"]["raw_pos_aligned"])
-    points3D.append(aligned["RH_leg"]["Tarsus"]["raw_pos_aligned"])
-    points3D.append(aligned["RH_leg"]["Claw"]["raw_pos_aligned"])
-
-    # Right antenna
-    points3D.append(np.zeros_like(aligned["RH_leg"]["Claw"]["raw_pos_aligned"]) * np.nan)
-    # Right stripe 1
-    points3D.append(np.zeros_like(aligned["RH_leg"]["Claw"]["raw_pos_aligned"]) * np.nan)
-    # Right stripe 2
-    points3D.append(np.zeros_like(aligned["RH_leg"]["Claw"]["raw_pos_aligned"]) * np.nan)
-    # Right stripe 3
-    points3D.append(np.zeros_like(aligned["RH_leg"]["Claw"]["raw_pos_aligned"]) * np.nan)
+    for leg in ["LF_leg", "LM_leg", "LH_leg", "L_antenna", "L_stripes", "RF_leg", "RM_leg", "RH_leg", "R_antenna", "R_stripes"]:
+        if "antenna" in leg:
+            points3D.append(missing_value_placeholder)
+            column_names.append(leg)
+        elif "stripes" in leg:
+            for stripe_number in range(3):
+                points3D.append(missing_value_placeholder)
+                column_name = " ".join([leg, f"{stripe_number}"])
+                column_names.append(column_name)
+        else:
+            for joint in ["Coxa", "Femur", "Tibia", "Tarsus", "Claw"]:
+                column_name = " ".join([leg, joint])
+                column_names.append(column_name)
+                if joint == "Coxa":
+                    points3D.append(upsample_fixed_coxa(aligned["LF_leg"]["Coxa"][key], n_timepoints))
+                else:
+                    points3D.append(aligned[leg][joint]["raw_pos_aligned"])
 
     points3D = np.array(points3D)
     points3D = np.swapaxes(points3D, 0, 1)
-    return points3D
+    return points3D, column_names
 
 
 def angles_as_list(angles):
     angle_list = []
+    column_names = []
 
-    angle_list.append(angles["LF_leg"]["yaw"])
-    angle_list.append(angles["LF_leg"]["pitch"])
-    angle_list.append(angles["LF_leg"]["roll"])
-    angle_list.append(angles["LF_leg"]["th_fe"])
-    angle_list.append(angles["LF_leg"]["th_ti"])
-    angle_list.append(angles["LF_leg"]["roll_tr"])
-    angle_list.append(angles["LF_leg"]["th_ta"])
-    
-    angle_list.append(angles["LM_leg"]["yaw"])
-    angle_list.append(angles["LM_leg"]["pitch"])
-    angle_list.append(angles["LM_leg"]["roll"])
-    angle_list.append(angles["LM_leg"]["th_fe"])
-    angle_list.append(angles["LM_leg"]["th_ti"])
-    angle_list.append(angles["LM_leg"]["roll_tr"])
-    angle_list.append(angles["LM_leg"]["th_ta"])
-    
-    angle_list.append(angles["LH_leg"]["yaw"])
-    angle_list.append(angles["LH_leg"]["pitch"])
-    angle_list.append(angles["LH_leg"]["roll"])
-    angle_list.append(angles["LH_leg"]["th_fe"])
-    angle_list.append(angles["LH_leg"]["th_ti"])
-    angle_list.append(angles["LH_leg"]["roll_tr"])
-    angle_list.append(angles["LH_leg"]["th_ta"])
-    
-    angle_list.append(angles["RF_leg"]["yaw"])
-    angle_list.append(angles["RF_leg"]["pitch"])
-    angle_list.append(angles["RF_leg"]["roll"])
-    angle_list.append(angles["RF_leg"]["th_fe"])
-    angle_list.append(angles["RF_leg"]["th_ti"])
-    angle_list.append(angles["RF_leg"]["roll_tr"])
-    angle_list.append(angles["RF_leg"]["th_ta"])
-    
-    angle_list.append(angles["RM_leg"]["yaw"])
-    angle_list.append(angles["RM_leg"]["pitch"])
-    angle_list.append(angles["RM_leg"]["roll"])
-    angle_list.append(angles["RM_leg"]["th_fe"])
-    angle_list.append(angles["RM_leg"]["th_ti"])
-    angle_list.append(angles["RM_leg"]["roll_tr"])
-    angle_list.append(angles["RM_leg"]["th_ta"])
-    
-    angle_list.append(angles["RH_leg"]["yaw"])
-    angle_list.append(angles["RH_leg"]["pitch"])
-    angle_list.append(angles["RH_leg"]["roll"])
-    angle_list.append(angles["RH_leg"]["th_fe"])
-    angle_list.append(angles["RH_leg"]["th_ti"])
-    angle_list.append(angles["RH_leg"]["roll_tr"])
-    angle_list.append(angles["RH_leg"]["th_ta"])
+    for leg in ["LF_leg", "LM_leg", "LH_leg", "RF_leg", "RM_leg", "RH_leg"]:
+        for angle in ["yaw", "pitch", "roll", "th_fe", "th_ti", "roll_tr", "th_ta"]:
+            angle_list.append(angles[leg][angle])
+            column_names.append(" ".join([leg, angle]))
 
     angle_list = np.array(angle_list)
     angle_list = np.swapaxes(angle_list, 0, 1)
     
-    return angle_list
+    return angle_list, column_names
 
 
 def angle_list_to_dict(angles):
