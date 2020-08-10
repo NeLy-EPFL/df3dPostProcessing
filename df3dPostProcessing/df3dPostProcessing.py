@@ -161,7 +161,7 @@ def convert_to_df3d_output_format(aligned, fixed=True):
                 column_name = " ".join([leg, joint])
                 column_names.append(column_name)
                 if joint == "Coxa":
-                    points3D.append(upsample_fixed_coxa(aligned["LF_leg"]["Coxa"][key], n_timepoints))
+                    points3D.append(upsample_fixed_coxa(aligned[leg]["Coxa"][key], n_timepoints))
                 else:
                     points3D.append(aligned[leg][joint]["raw_pos_aligned"])
 
