@@ -171,12 +171,13 @@ def calculate_angles(aligned_dict,begin,end,get_roll_tr):
                     tibia_pos = data['raw_pos_aligned'][i]
                     tarsus_pos = joints['Tarsus']['raw_pos_aligned'][i]
                     th_tibia = angle_between_segments(femur_pos, tibia_pos, tarsus_pos,rot_axis)
-                    #print(th_tibia*180/np.pi)                   
-                    th_tibia = th_tibia-factor_zero                   
+                    #print(th_tibia*180/np.pi)
+                    if th_tibia < 0:
+                        th_tibia = th_tibia-factor_zero                   
                     #print(th_tibia*180/np.pi)
                     angles_dict[leg]['th_ti'].append(th_tibia)
                     if get_roll_tr:
-                        roll_tr = calculate_roll_trochanter(leg,angles_dict,joints,i)
+                        roll_tr = calculate_roll_trochanter(leg,angles_dict,joints,i-begin)
                         if ('LF' in leg and roll_tr>0) or ('RF' in leg and roll_tr<0):
                             roll_tr = -roll_tr
                         angles_dict[leg]['roll_tr'].append(roll_tr)
@@ -189,24 +190,28 @@ def calculate_angles(aligned_dict,begin,end,get_roll_tr):
                     claw_pos = joints['Claw']['raw_pos_aligned'][i]
                     th_tarsus = angle_between_segments(tibia_pos, tarsus_pos, claw_pos,rot_axis)
                     #print(th_tarsus*180/np.pi)
-                    th_tarsus = factor_zero + th_tarsus
-                    if abs(th_tarsus) > np.deg2rad(90):
-                        th_tarsus = -2*np.pi - th_tarsus
+                    if th_tarsus > 0:
+                        th_tarsus = factor_zero + th_tarsus
+                    else:
+                        th_tarsus = factor_zero - th_tarsus
                     #print(th_tarsus*180/np.pi)
                     angles_dict[leg]['th_ta'].append(th_tarsus)
 
     return angles_dict
 
 
-def calculate_forward_kinematics(leg_name, frame, leg_angles, data_dict, extraDOF={},ik_angles=False):
+def calculate_forward_kinematics(leg_name, frame, leg_angles, data_dict, extraDOF={},ik_angles=False,offset=0):
 
     if not ik_angles:    
         if 'LF' in leg_name or 'RF' in leg_name:
-            roll = leg_angles['roll'][frame]
+            if 'LF' in leg_name:
+                roll = leg_angles['roll'][frame]+np.deg2rad(offset)
+            if 'RF' in leg_name:
+                roll = leg_angles['roll'][frame]-np.deg2rad(offset)
         elif 'LM' in leg_name or 'LH' in leg_name:
-            roll = - (np.pi/2 + leg_angles['roll'][frame])
+            roll = - (np.pi/2 + leg_angles['roll'][frame])-np.deg2rad(offset)
         elif 'RM' in leg_name or 'RH' in leg_name:
-            roll = np.pi/2 + leg_angles['roll'][frame]
+            roll = np.pi/2 + leg_angles['roll'][frame]-np.deg2rad(offset)
 
     else:
         roll = -leg_angles['roll'][frame]
