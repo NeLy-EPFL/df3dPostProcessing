@@ -4,7 +4,46 @@ from .utils.utils_alignment import align_data, rescale_using_2d_data
 from .utils.utils_angles import calculate_angles
 #from .utils.utils_plots import *
 
-tracked_joints = ['LFCoxa',
+df3d_skeleton = ['LFCoxa',
+                 'LFFemur',
+                 'LFTibia',
+                 'LFTarsus',
+                 'LFClaw',
+                 'LMCoxa',
+                 'LMFemur',
+                 'LMTibia',
+                 'LMTarsus',
+                 'LMClaw',
+                 'LHCoxa',
+                 'LHFemur',
+                 'LHTibia',
+                 'LHTarsus',
+                 'LHClaw',
+                 'LAntenna',
+                 'LStripe1',
+                 'LStripe2',
+                 'LStripe3',
+                 'RFCoxa',
+                 'RFFemur',
+                 'RFTibia',
+                 'RFTarsus',
+                 'RFClaw',
+                 'RMCoxa',
+                 'RMFemur',
+                 'RMTibia',
+                 'RMTarsus',
+                 'RMClaw',
+                 'RHCoxa',
+                 'RHFemur',
+                 'RHTibia',
+                 'RHTarsus',
+                 'RHClaw',
+                 'RAntenna',
+                 'RStripe1',
+                 'RStripe2',
+                 'RStripe3']
+
+prism_skeleton = ['LFCoxa',
                   'LFFemur',
                   'LFTibia',
                   'LFTarsus',
@@ -19,10 +58,6 @@ tracked_joints = ['LFCoxa',
                   'LHTibia',
                   'LHTarsus',
                   'LHClaw',
-                  'LAntenna',
-                  'LStripe1',
-                  'LStripe2',
-                  'LStripe3',
                   'RFCoxa',
                   'RFFemur',
                   'RFTibia',
@@ -37,26 +72,22 @@ tracked_joints = ['LFCoxa',
                   'RHFemur',
                   'RHTibia',
                   'RHTarsus',
-                  'RHClaw',
-                  'RAntenna',
-                  'RStripe1',
-                  'RStripe2',
-                  'RStripe3']
+                  'RHClaw']
 
 class df3dPostProcess:
-    def __init__(self, results_dir, multiple = False, file_name = ''):
+    def __init__(self, results_dir, multiple = False, file_name = '', skeleton='df3d'):
         self.res_dir = results_dir
-        self.tracked_joints = tracked_joints
-        self.raw_data_3d = {}
-        self.raw_data_2d = {}
+        self.raw_data_3d = np.array([])
+        self.raw_data_2d = np.array([])
+        self.skeleton = skeleton
         self.raw_data_cams = {}
         self.load_data(results_dir, multiple, file_name)
-        self.data_3d_dict = load_data_to_dict(self.raw_data_3d)
-        self.data_2d_dict = load_data_to_dict(self.raw_data_2d)
+        self.data_3d_dict = load_data_to_dict(self.raw_data_3d, skeleton)
+        self.data_2d_dict = load_data_to_dict(self.raw_data_2d, skeleton)
         self.aligned_model = {}
 
     def align_3d_data(self, rescale = True):
-        self.aligned_model = align_data(self.data_3d_dict)
+        self.aligned_model = align_data(self.data_3d_dict,self.skeleton)
         if rescale:
             self.aligned_model = rescale_using_2d_data(self.aligned_model, self.data_2d_dict, self.raw_data_cams, self.res_dir)
             
@@ -83,7 +114,7 @@ class df3dPostProcess:
                 elif key == 'points2d':
                     self.raw_data_2d = vals       
 
-def load_data_to_dict(data):
+def load_data_to_dict(data, skeleton):
     final_dict ={}
     if len(data.shape) == 3:
         time_pts, body_parts, axes = data.shape
@@ -91,6 +122,14 @@ def load_data_to_dict(data):
     elif len(data.shape) == 4:
         num_cams, time_pts, body_parts, axes = data.shape
         cams_dict = {}
+    else:
+        return final_dict
+    
+    if skeleton == 'prism':
+        tracked_joints = prism_skeleton
+    elif skeleton == 'df3d':
+        tracked_joints = df3d_skeleton
+        
     if body_parts != len(tracked_joints):
         raise Exception("Check tracked joints definition")
 

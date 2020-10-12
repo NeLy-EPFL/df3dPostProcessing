@@ -4,10 +4,11 @@ import os
 from mpl_toolkits.mplot3d import Axes3D
 from scipy.spatial.transform import Rotation as R
 
-def align_data(exp_dict):
-    exp_dict = default_order_of_axis(exp_dict)
+def align_data(exp_dict,skeleton='df3d'):
+    if skeleton == 'df3d':
+        exp_dict = default_order_of_axis(exp_dict)
     fix = fixed_lengths_and_base_point(exp_dict)
-    align = align_model(fix)
+    align = align_model(fix,skeleton)
     
     return align
 
@@ -61,7 +62,7 @@ def fixed_lengths_and_base_point(raw_dict):
                 new_dict[segment][landmark]['mean_length']=np.mean(dist)    
     return new_dict
 
-def align_model(fixed_dict):
+def align_model(fixed_dict,skeleton):
     front_coxae = []
     middle_coxae = []
     hind_coxae = []
@@ -82,46 +83,223 @@ def align_model(fixed_dict):
     alignment = {}
     for pos, coords in coxae.items():
         alignment[pos] = {}
-        y_angle = np.arctan2(coords[1,2]-coords[0,2],coords[1,0]-coords[0,0]) * 180 / np.pi + 90
-        x_angle = (np.arctan2(coords[1,2]-coords[0,2],coords[1,1]-coords[0,1])*180/np.pi+90)*np.cos(np.deg2rad(y_angle))+90
         middle_point= [(point[0]+point[1])/2 for point in coords.transpose()]
-        alignment[pos]['y_angle']= y_angle
-        alignment[pos]['x_angle']= x_angle
-        alignment[pos]['middle_point']= middle_point
-        #print(pos, y_angle,x_angle)
-        
+        y_angle = np.arctan2(middle_point[2],middle_point[0])
+        r_mp = R.from_euler('zyx', [0,y_angle,np.pi/2])
+        new_mid_pnt = r_mp.apply(middle_point)
+        #new_mid_pnt[2] *= -1
+        zero_coords = coords - middle_point
+        th_y = np.arctan2(zero_coords[0][0],zero_coords[0][2])
+        r_roty = R.from_euler('zyx', [0,-th_y,0])
+        new_coords = r_roty.apply(zero_coords)
+        th_x = np.arctan2(new_coords[0][1],new_coords[0][2])        
+        alignment[pos]['th_y'] = th_y
+        alignment[pos]['th_x'] = th_x
+        alignment[pos]['mid_pnt'] = middle_point
+        alignment[pos]['offset'] = new_mid_pnt
+                
     aligned_dict = {}
     for leg, joints in fixed_dict.items():
         aligned_dict[leg]={}
+        theta_y = [angle['th_y'] for pos, angle in alignment.items() if pos in leg][0]
+        theta_x = [angle['th_x'] for pos, angle in alignment.items() if pos in leg][0]
+        mid_point = [point['mid_pnt'] for pos, point in alignment.items() if pos in leg][0]
+        offset = [point['offset'] for pos, point in alignment.items() if pos in leg][0]        
         for joint, data in joints.items():
             aligned_dict[leg][joint]={}
             for metric, coords in data.items():
-                theta_y = [angle['y_angle'] for pos, angle in alignment.items() if pos in leg][0]
-                theta_x = [angle['x_angle'] for pos, angle in alignment.items() if pos in leg][0]
-                mid_point = [point['middle_point'] for pos, point in alignment.items() if pos in leg]
-                r = R.from_euler('yx', [theta_y,-theta_x], degrees=True)
-                offset_y_new = r.apply(mid_point)[0][1]
                 if '_pos' in metric:
                     key = metric + '_aligned'
-                    aligned_dict[leg][joint][key] = [r.apply(coords)]
-                    for points in aligned_dict[leg][joint][key]:
-                        if 'fixed' in metric:                            
-                            points[1] = offset_y_new-points[1]
-                        else:
-                            for pt in points:
-                                pt[1] = offset_y_new-pt[1]
-                    aligned_dict[leg][joint][key] = aligned_dict[leg][joint][key][0]
+                    r = R.from_euler('zyx', [0,-theta_y,theta_x + np.pi/2])
+                    zero_cent = coords - np.array(mid_point)
+                    rot_coords = r.apply(zero_cent)
+                    trans_coords = rot_coords + (offset - alignment['M_']['offset'])
+                    align_coords = np.array([trans_coords.transpose()[0],trans_coords.transpose()[1],-trans_coords.transpose()[2]]).transpose()
+                    aligned_dict[leg][joint][key] = align_coords
+                    #if joint == 'Coxa':
+                    #    aligned_dict[leg][joint]['offset'] = alignment['M_']['offset']*[1,1,-1]
                 else:
                     aligned_dict[leg][joint][metric] = coords
-
-
-    #plot_3d_and_2d(aligned_dict, metric = 'raw_pos_aligned')
-    #plot_fixed_coxa(aligned_dict)            
-
+       
     return aligned_dict
 
+def rescale_using_2d_data(data_3d,data_2d,cams_info,exp_dir,pixelSize=[5.86e-3,5.86e-3],scale_procrustes = True,procrustes_factor={'LF':0.75,'LM':0.75,'LH':0.75,'RF':0.7,'RM':0.8,'RH':0.8}):
+    """
+    Rescale 3d data using 2d data
+    """
+    views = {}
 
-def rescale_using_2d_data(data_3d,data_2d,cams_info,exp_dir,pixelSize=[5.86e-3,5.86e-3]):
+    ##original: 0.8,0.25,0.4,0.2
+    ##for walking: 0.75,0.1,0.15,0.0
+    
+    x_factor = 5.0
+    y_factor = 0.35
+    z_factor = -0.1
+
+    for key, info in cams_info.items():
+        r = R.from_dcm(info['R']) 
+        th = r.as_euler('zyx', degrees=True)[1]
+        if 90-th<15:
+            views['R_points2d'] = data_2d[key-1]
+            views['R_camID'] = key-1 
+        elif 90-th>165:
+            views['L_points2d'] = data_2d[key-1]
+            views['L_camID'] = key-1
+
+    for name, leg in data_3d.items():  
+        for k, joints in leg.items():
+            dist_px = views[name[:1]+'_points2d'][name][k][0]-np.mean(views[name[:1]+'_points2d'][name[:1]+'M_leg']['Coxa'],axis=0)
+            #if scale_procrustes:
+            #    y_dist = procrustes_factor*np.mean([dist_px[0],dist_px[1]])*pixelSize[0]
+            #else:
+            #    y_dist = 0#np.mean([dist_px[0],dist_px[1]])*pixelSize[0]
+                
+            dist_mm = dist_px *pixelSize
+            
+            #if k == 'Tarsus' and 'F' in name:
+            #    y_offset = 0.1#0.5
+            #elif k == 'Claw' and 'F' in name:
+            #    y_offset = 0.15#0.55
+            #elif k == 'Tibia' and 'F' in name:
+            #    y_offset = 0.0#0.05
+
+            if name[:1] == 'L':
+                dist = np.array([dist_mm[0],0,-dist_mm[1]])
+            if name[:1] == 'R':
+                dist = np.array([-dist_mm[0],0,-dist_mm[1]])
+
+            offset = joints['raw_pos_aligned'][0]-dist
+            
+            #x_vals = joints['raw_pos_aligned'].transpose()[0] - offset[0]
+            #y_vals = joints['raw_pos_aligned'].transpose()[1] - y_offset
+            #z_vals = joints['raw_pos_aligned'].transpose()[2] - offset[2]
+            x_vals=[]
+            y_vals=[]
+            z_vals=[]
+            #print(name,k,np.min(np.array(joints['raw_pos_aligned']).transpose()[1]),np.max(np.array(joints['raw_pos_aligned']).transpose()[1]))
+            mean_x = np.mean(np.array(joints['raw_pos_aligned']).transpose()[0])
+            diff_x = np.max(np.array(joints['raw_pos_aligned']).transpose()[0])-np.min(np.array(joints['raw_pos_aligned']).transpose()[0])
+            for i, pnt in enumerate(joints['raw_pos_aligned']):
+                if scale_procrustes:
+                    if k == 'Coxa':
+                        pnt[1] *= 0.5
+                    else:
+                        pnt[1] *= procrustes_factor[name[:2]]
+                        
+                if k!='Coxa' or k!='Femur':
+                    x_new = pnt[0] - offset[0]-((pnt[0]-dist[0])/x_factor)
+                else:
+                    x_new = pnt[0] - offset[0]
+
+                if abs(leg['Tarsus']['raw_pos_aligned'][i][1])<0.30 and (k=='Claw' or k=='Tarsus') and 'F' in name:
+                    if k=='Claw':
+                        y_factor_mod = 1.4*y_factor
+                    if k=='Tarsus':
+                        y_factor_mod = y_factor
+                    if 'L' in name:
+                        y_factor_mod *= -1
+                    
+                    y_new = pnt[1] - y_factor_mod
+                else:
+                    y_new = pnt[1]
+
+                if k=='Claw' or k=='Tarsus':
+                    z_new = pnt[2] - offset[2]*(z_factor-pnt[2]+ offset[2])/(z_factor-dist[2])
+                else:
+                    z_new = pnt[2] - offset[2]
+                    
+                x_vals.append(x_new)
+                y_vals.append(y_new)
+                z_vals.append(z_new)
+                       
+            joints['raw_pos_aligned'] = np.array([x_vals,y_vals,z_vals]).transpose()
+
+            if k == 'Coxa':
+                joints['fixed_pos_aligned'] = np.mean(joints['raw_pos_aligned'],axis=0)
+    
+    data_3d = recalculate_lengths(data_3d)
+    
+    return data_3d
+
+
+'''
+def rescale_using_2d_data(data_3d,data_2d,cams_info,exp_dir,pixelSize=[5.86e-3,5.86e-3],scale_procrustes = True,procrustes_factor=0.75):
+    """
+    Rescale 3d data using 2d data
+    """
+    views = {}
+
+    ##original: 0.8,0.25,0.4,0.2
+    ##for walking: 0.75,0.1,0.15,0.0
+    
+    for key, info in cams_info.items():
+        r = R.from_dcm(info['R']) 
+        th = r.as_euler('zyx', degrees=True)[1]
+        if 90-th<15:
+            views['R_points2d'] = data_2d[key-1]
+            views['R_camID'] = key-1 
+        elif 90-th>165:
+            views['L_points2d'] = data_2d[key-1]
+            views['L_camID'] = key-1
+
+    for name, leg in data_3d.items():  
+        for k, joints in leg.items():
+            dist_px = views[name[:1]+'_points2d'][name][k][0]-views[name[:1]+'_points2d'][name[:1]+'M_leg']['Coxa'][0]
+            #if scale_procrustes:
+            #    y_dist = procrustes_factor*np.mean([dist_px[0],dist_px[1]])*pixelSize[0]
+            #else:
+            #    y_dist = 0#np.mean([dist_px[0],dist_px[1]])*pixelSize[0]
+                
+            dist_mm = dist_px *pixelSize
+            y_offset = 0
+            
+            if k == 'Tarsus' and 'F' in name:
+                y_offset = 0.1#0.5
+            elif k == 'Claw' and 'F' in name:
+                y_offset = 0.15#0.55
+            elif k == 'Tibia' and 'F' in name:
+                y_offset = 0.0#0.05
+
+            if name[:1] == 'L':
+                dist = np.array([dist_mm[0],0,-dist_mm[1]])
+                y_offset *=-1
+            if name[:1] == 'R':
+                dist = np.array([-dist_mm[0],0,-dist_mm[1]])
+
+            offset = joints['raw_pos_aligned'][0]-dist
+            
+            #x_vals = joints['raw_pos_aligned'].transpose()[0] - offset[0]
+            #y_vals = joints['raw_pos_aligned'].transpose()[1] - y_offset
+            #z_vals = joints['raw_pos_aligned'].transpose()[2] - offset[2]
+            x_vals=[]
+            y_vals=[]
+            z_vals=[]
+            for pnt in joints['raw_pos_aligned']:
+                x_new = pnt[0] - offset[0]
+                y_new = pnt[1] - y_offset
+                z_new = pnt[2] - offset[2]
+
+                if scale_procrustes:
+                    y_new *= procrustes_factor
+                
+                x_vals.append(x_new)
+                y_vals.append(y_new)
+                z_vals.append(z_new)
+            
+            #if scale_procrustes:
+            #    y_vals *= procrustes_factor
+                       
+            joints['raw_pos_aligned'] = np.array([x_vals,y_vals,z_vals]).transpose()
+
+            if k == 'Coxa':
+                joints['fixed_pos_aligned'] = np.mean(joints['raw_pos_aligned'],axis=0)
+    
+    data_3d = recalculate_lengths(data_3d)
+    
+    return data_3d
+'''
+'''
+def rescale_using_2d_data2(data_3d,data_2d,cams_info,exp_dir,pixelSize=[5.86e-3,5.86e-3],scale_procrustes = True,procrustes_factor=0.5):
     """
     Rescale 3d data using 2d data
     """
@@ -141,22 +319,30 @@ def rescale_using_2d_data(data_3d,data_2d,cams_info,exp_dir,pixelSize=[5.86e-3,5
         #    front_view['F_points2d'] = data_2d[key-1]
         #    front_view['cam_id'] = key-1
 
-    #draw_legs_from_2d(right_view, exp_dir,saveimgs=True)
-    #draw_legs_on_img(right_view, exp_dir)   
+    #draw_legs_from_2d(left_view, exp_dir,saveimgs=True)   
 
     for name, leg in data_3d.items():  
         for k, joints in leg.items():
+            if scale_procrustes and k =='Coxa':
+                joints['fixed_pos_aligned'][1] = joints['fixed_pos_aligned'][1]*procrustes_factor
+                x_3d = joints['raw_pos_aligned'].transpose()[0] 
+                y_3d = joints['raw_pos_aligned'].transpose()[1] * procrustes_factor
+                z_3d = joints['raw_pos_aligned'].transpose()[2]
+                scaled_data = np.array([x_3d,y_3d,z_3d]).transpose()
+                joints['raw_pos_aligned'] = scaled_data
             if k == 'Femur':
                 prev = 'Coxa'
             if k == 'Tibia':
-                prev = 'Femur'                
+                prev = 'Femur'
             if k == 'Tarsus':
-                prev = 'Tibia'             
+                prev = 'Tibia'
             if k == 'Claw':
                 prev = 'Tarsus'
-
             if k != 'Coxa':
-                x_3d = joints['raw_pos_aligned'].transpose()[0] 
+                x_3d = joints['raw_pos_aligned'].transpose()[0]
+                #if scale_procrustes:
+                #    y_3d = joints['raw_pos_aligned'].transpose()[1]*0.5
+                #else:
                 y_3d = joints['raw_pos_aligned'].transpose()[1] 
                 z_3d = joints['raw_pos_aligned'].transpose()[2]
                 x_3d_amp = np.max(x_3d)-np.min(x_3d) 
@@ -186,9 +372,13 @@ def rescale_using_2d_data(data_3d,data_2d,cams_info,exp_dir,pixelSize=[5.86e-3,5
                 x_factor = x_2d_amp / x_3d_amp
                 y_factor = np.mean([x_2d_amp/x_3d_amp,z_2d_amp/z_3d_amp])
                 z_factor = z_2d_amp / z_3d_amp
+                #print(name,x_factor,y_factor,z_factor)
                 for i in range(len(x_3d)):
                     x_3d_scaled.append(x_3d_zero + (x_3d[i] - x_3d_zero) * x_factor)
-                    y_3d_scaled.append(y_3d_zero + (y_3d[i] - y_3d_zero) * y_factor)
+                    if scale_procrustes:
+                        y_3d_scaled.append((y_3d_zero + (y_3d[i] - y_3d_zero) * y_factor)*procrustes_factor)
+                    else:
+                        y_3d_scaled.append(y_3d_zero + (y_3d[i] - y_3d_zero) * y_factor)
                     z_3d_scaled.append(z_3d_zero + (z_3d[i] - z_3d_zero) * z_factor)
                 
                 scaled_data = np.array([x_3d_scaled,y_3d_scaled,z_3d_scaled]).transpose()
@@ -198,30 +388,29 @@ def rescale_using_2d_data(data_3d,data_2d,cams_info,exp_dir,pixelSize=[5.86e-3,5
     data_3d = recalculate_lengths(data_3d)
     
     return data_3d
+'''
 
 def recalculate_lengths(data):
     for name, leg in data.items():
         for segment, body_part in leg.items():
+            if segment != 'Claw':
                 dist = []
+                metric = 'raw_pos_aligned'
                 if 'Coxa' in segment:
-                    metric = 'raw_pos_aligned'
                     next_segment = 'Femur'
                     
                 if 'Femur' in segment:
-                    metric = 'raw_pos_aligned'
                     next_segment = 'Tibia'
                     
                 if 'Tibia' in segment:
-                    metric = 'raw_pos_aligned'
                     next_segment = 'Tarsus'
                     
                 if 'Tarsus' in segment:
-                    metric = 'raw_pos_aligned'
                     next_segment = 'Claw'
                     
                 for i, point in enumerate(body_part[metric]):
                     a = point
-                    b = data[name][next_segment]['raw_pos_aligned'][i] 
+                    b = data[name][next_segment][metric][i] 
                     dist.append(np.linalg.norm(a-b))
                         
                 body_part['mean_length']=np.mean(dist)
@@ -232,7 +421,7 @@ def draw_legs_from_2d(cam_view,exp_dir,begin=0,end=0,saveimgs = False):
     data = cam_view[key]
     cam_id = cam_view['cam_id']
     
-    colors = {'LF':(255,0,0),'LM':(0,255,0),'LH':(0,0,255),'RF':(153,76,0),'RM':(255,128,0),'RH':(255,178,102)}
+    colors = {'LF_leg':(0,0,204),'LM_leg':(51,51,255),'LH_leg':(102,102,255),'RF_leg':(153,76,0),'RM_leg':(255,128,0),'RH_leg':(255,178,102)}
     
     if end == 0:
         end = len(data['LF_leg']['Coxa'])
@@ -244,7 +433,7 @@ def draw_legs_from_2d(cam_view,exp_dir,begin=0,end=0,saveimgs = False):
         img = cv.imread(img_name)
         for leg, body_parts in data.items():
             if leg[0] == 'L' or leg[0]=='R':
-                color = colors[leg[:2]]
+                color = colors[leg]
                 for segment, points in body_parts.items():
                     if segment != 'Coxa':
                         if 'Femur' in segment:
@@ -262,7 +451,7 @@ def draw_legs_from_2d(cam_view,exp_dir,begin=0,end=0,saveimgs = False):
                         img = draw_lines(img,start_point,end_point,color=color)
         if saveimgs:
             file_name = exp_dir.split('/')[-1]
-            new_folder = 'results/tracking_2d/'+file_name.replace('.pkl','/')
+            new_folder = 'results/'+file_name.replace('.pkl','/')+'tracking_2d/'
             if not os.path.exists(new_folder):
                 os.makedirs(new_folder)
             name = new_folder + 'camera_' + str(cam_id) + '_img_' + '{:06}'.format(frame) + '.jpg'
