@@ -121,7 +121,7 @@ def align_model(fixed_dict,skeleton):
        
     return aligned_dict
 
-def rescale_using_2d_data(data_3d,data_2d,cams_info,exp_dir,pixelSize=[5.86e-3,5.86e-3],scale_procrustes = True,procrustes_factor={'LF':0.75,'LM':0.75,'LH':0.75,'RF':0.7,'RM':0.8,'RH':0.8}):
+def rescale_using_2d_data(data_3d,data_2d,cams_info,exp_dir,pixelSize=[5.86e-3,5.86e-3],scale_procrustes = True,procrustes_factor={'LF':0.7,'LM':0.75,'LH':0.8,'RF':0.7,'RM':0.75,'RH':0.8}):
     """
     Rescale 3d data using 2d data
     """
@@ -131,7 +131,7 @@ def rescale_using_2d_data(data_3d,data_2d,cams_info,exp_dir,pixelSize=[5.86e-3,5
     ##for walking: 0.75,0.1,0.15,0.0
     
     x_factor = 5.0
-    y_factor = 0.35
+    y_factor = 0.33
     z_factor = -0.1
 
     for key, info in cams_info.items():
@@ -189,11 +189,12 @@ def rescale_using_2d_data(data_3d,data_2d,cams_info,exp_dir,pixelSize=[5.86e-3,5
                 else:
                     x_new = pnt[0] - offset[0]
 
-                if abs(leg['Tarsus']['raw_pos_aligned'][i][1])<0.30 and (k=='Claw' or k=='Tarsus') and 'F' in name:
+                if abs(leg['Tarsus']['raw_pos_aligned'][i][1])<y_factor and (k=='Claw' or k=='Tarsus') and 'F' in name:
+                    
                     if k=='Claw':
-                        y_factor_mod = 1.4*y_factor
+                        y_factor_mod = 1.5*y_factor
                     if k=='Tarsus':
-                        y_factor_mod = y_factor
+                        y_factor_mod = 1.15*y_factor
                     if 'L' in name:
                         y_factor_mod *= -1
                     

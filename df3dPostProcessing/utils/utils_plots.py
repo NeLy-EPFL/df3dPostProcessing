@@ -337,17 +337,24 @@ def plot_gait_diagram(begin=0,end=0):
     plt.show()
 '''
 
-def plot_collisions_diagram(sim_data, begin=0, end=0):
+def plot_collisions_diagram(sim_data, begin=0, end=0, opt_res=False):
     data={}
     sim_res_folder = '/home/nely/SimFly/kinematic_matching/results/'
 
     if sim_data == 'walking':
-        collisions_data = sim_res_folder + 'grf_data_ball_walking.pkl'
+        if not opt_res:
+            collisions_data = sim_res_folder + 'grf_data_ball_walking.pkl'
+        else:
+            sim_res_folder='/home/nely/SimFly/GIT/farms_models_data/drosophila_v3/simulation/Results/'
+            collisions_data = sim_res_folder + 'grf_data_optimization.pkl'
     elif sim_data == 'grooming':
         collisions_data = sim_res_folder + 'selfCollisions_data_ball_grooming.pkl'
 
     if end == 0:
-        end = 9.0
+        if not opt_res:
+            end = 9.0
+        else:
+            end = 5.0 
 
     start = int(begin*100)
     stop = int(end*100)
@@ -364,11 +371,15 @@ def plot_collisions_diagram(sim_data, begin=0, end=0):
     elif sim_data == 'grooming':
         title_plot = 'Collisions diagram'        
         collisions = {'LAntenna':[], 'LFTibia':[], 'LFTarsus1':[], 'LFTarsus2':[], 'LFTarsus3':[], 'LFTarsus4':[], 'LFTarsus5':[], 'RFTarsus5':[], 'RFTarsus4':[], 'RFTarsus3':[], 'RFTarsus2':[], 'RFTarsus1':[], 'RFTibia':[], 'RAntenna':[]}#, 'LEye':[], 'REye':[]}        
+        #for segment, coll in data.items():
+        #    for key, forces in coll.items():
+        #        if segment in collisions.keys():
+        #            collisions[segment].append([np.linalg.norm(force) for force in forces])
         for segment, coll in data.items():
-            for key, forces in coll.items():
-                if segment in collisions.keys():
-                    collisions[segment].append([np.linalg.norm(force) for force in forces])        
-    
+            if segment in collisions.keys():
+                for key, vals in coll.items():
+                    collisions[segment].append(vals.transpose()[0])
+
     fig, axs = plt.subplots(len(collisions.keys()), sharex=True,gridspec_kw={'hspace': 0})
     fig.suptitle(title_plot)
     
@@ -418,15 +429,10 @@ def plot_collisions_diagram(sim_data, begin=0, end=0):
     plt.show()
     
 
-def plot_fly_path(begin=0, end=0, sequence=True, save_imgs=False, experiment='', heading=True):
-    sim_res_folder = '/home/nely/SimFly/kinematic_matching/results/'
-    ball_data = sim_res_folder + 'ballRot_data_ball_walking.pkl'
+def plot_fly_path(begin=0, end=0, sequence=True, save_imgs=False, experiment='', heading=True, opt_res=False):
 
-    with open(ball_data, 'rb') as fp:
-        data = pickle.load(fp)
-
-    if end == 0:
-        end = len(data)    
+    ball_data_list=[]
+    colors = ['winter','copper','Purples','Greens','Oranges']
 
     fig = plt.figure()  
     ax = plt.axes()
@@ -434,60 +440,230 @@ def plot_fly_path(begin=0, end=0, sequence=True, save_imgs=False, experiment='',
     ax.set_xlabel('x (mm)')
     ax.set_ylabel('y (mm)')
 
-    data_array = np.array(data)
-    x_diff = np.diff(data_array.transpose()[0])
-    y_diff = np.diff(data_array.transpose()[1])
-    #th = -np.diff(data_array.transpose()[2])
+    val_max = 0
     
-    x=[0]
-    y=[0]
-    for i in range(begin,end-1):#, coords in enumerate(x_diff[begin:end]):
-        if heading:
-            th = -data[i][2]
-            x_new = x_diff[i]*np.cos(th) - y_diff[i]*np.sin(th)
-            y_new = y_diff[i]*np.cos(th) + x_diff[i]*np.sin(th)
-            x.append(x[-1]+x_new)
-            y.append(y[-1]+y_new)
-        else:
-            x.append(data[i][0])
-            y.append(data[i][1])
+    if not opt_res:
+        sim_res_folder = '/home/nely/SimFly/kinematic_matching/results/'
+        ball_data_list.append(sim_res_folder + 'ballRot_data_ball_walking.pkl')
+    else:
+        sim_res_folder='/home/nely/SimFly/GIT/farms_models_data/drosophila_v3/simulation/ball_data/'
+        ball_data_list.append(sim_res_folder + 'ballRot_data_optimization_49.pkl')
+        ball_data_list.append(sim_res_folder + 'ballRot_data_optimization_37.pkl')
+        ball_data_list.append(sim_res_folder + 'ballRot_data_optimization_24.pkl')
+        ball_data_list.append(sim_res_folder + 'ballRot_data_optimization_12.pkl')
+        ball_data_list.append(sim_res_folder + 'ballRot_data_optimization_0.pkl')
 
-        if sequence:
-            print('\rFrame: ' + str(i),end='')
-            sc = ax.scatter(x,y,c=np.linspace(begin/100,len(x)/100,len(x)),cmap='winter',vmin=begin/100,vmax=end/100)
-        
-            m._transform.rotate_deg(th*180/np.pi)        
-            ax.scatter(x[-1], y[-1], marker=m, s=200,color='black')
-            m._transform.rotate_deg(-th*180/np.pi)
-        
-            if i == 0:
-                sc.set_clim([begin/100,end/100])
-                cb = plt.colorbar(sc)
-                cb.set_label('Time (s)')
+    for ind, ball_data in enumerate(ball_data_list):
 
-            ax.set_xlabel('x (mm)')
-            ax.set_ylabel('y (mm)')
-            if save_imgs:
-                file_name = experiment.split('/')[-1]
-                new_folder = 'results/'+file_name.replace('.pkl','/')+'fly_path'
-                if not os.path.exists(new_folder):
-                    os.makedirs(new_folder)
-                name = new_folder + '/img_' + '{:06}'.format(i) + '.jpg'
-                fig.set_size_inches(6,4)
-                plt.savefig(name, dpi=300)
+        with open(ball_data, 'rb') as fp:
+            data = pickle.load(fp)
+
+        if end == 0:
+            end = len(data)    
+
+        
+
+        data_array = np.array(data)
+        x_diff = np.diff(-data_array.transpose()[0])
+        y_diff = np.diff(data_array.transpose()[1])
+        #th = -np.diff(data_array.transpose()[2])
+
+        x=[0]
+        y=[0]
+        for i in range(begin,end-1):#, coords in enumerate(x_diff[begin:end]):
+            if heading:
+                th = data[i][2]
+                x_new = x_diff[i]*np.cos(th) - y_diff[i]*np.sin(th)
+                y_new = y_diff[i]*np.cos(th) + x_diff[i]*np.sin(th)
+                x.append(x[-1]+x_new)
+                y.append(y[-1]+y_new)
             else:
-                plt.draw()
-                plt.pause(0.001)
-            ax.clear()
+                x.append(data[i][0])
+                y.append(data[i][1])
 
-    if not sequence:
-        sc = ax.scatter(x,y,c=np.arange(begin/100,end/100,0.01),cmap='winter')
-        sc.set_clim([begin/100,end/100])
-        cb = plt.colorbar(sc)
-        cb.set_label('Time (s)')
-        plt.show()
+            if sequence:
+                print('\rFrame: ' + str(i),end='')
+                sc = ax.scatter(x,y,c=np.linspace(begin/100,len(x)/100,len(x)),cmap='winter',vmin=begin/100,vmax=end/100)
 
-def draw_grf_on_imgs(data_2d, experiment, sim_data='walking', side='L', begin=0, end=0, save_imgs=False,pause=0,grfScalingFactor=10,scale=5):
+                m._transform.rotate_deg(th*180/np.pi)        
+                ax.scatter(x[-1], y[-1], marker=m, s=200,color='black')
+                m._transform.rotate_deg(-th*180/np.pi)
+
+                if i == 0:
+                    sc.set_clim([begin/100,end/100])
+                    cb = plt.colorbar(sc)
+                    cb.set_label('Time (s)')
+
+                ax.set_xlabel('x (mm)')
+                ax.set_ylabel('y (mm)')
+                if save_imgs:
+                    file_name = experiment.split('/')[-1]
+                    new_folder = 'results/'+file_name.replace('.pkl','/')+'fly_path'
+                    if not os.path.exists(new_folder):
+                        os.makedirs(new_folder)
+                    name = new_folder + '/img_' + '{:06}'.format(i) + '.jpg'
+                    fig.set_size_inches(6,4)
+                    plt.savefig(name, dpi=300)
+                else:
+                    plt.draw()
+                    plt.pause(0.001)
+                ax.clear()
+
+        if opt_res:
+            max_x = np.max(np.array(x))
+
+            if max_x > val_max:
+                val_max = max_x
+            
+            lim = val_max + 0.05*val_max        
+            ax.set_xlim(-2, lim)
+            ax.set_ylim(-lim/2, lim/2)
+
+        if not sequence:
+            sc = ax.scatter(x,y,c=np.arange(begin/100,end/100,0.01),cmap=colors[ind])
+            sc.set_clim([begin/100,end/100])
+            cb = plt.colorbar(sc)
+            if ind==0:
+                cb.set_label('Time (s)')        
+    plt.show()
+
+def draw_collisions_on_imgs(data_2d, experiment, sim_data='grooming', side='L', begin=0, end=0, save_imgs=False,pause=0,grfScalingFactor=10,scale=120):
+    data={}
+    sim_res_folder = '/home/nely/SimFly/kinematic_matching/results/'
+    grf_data = sim_res_folder + 'selfCollisions_data_ball_' + sim_data + '.pkl'
+
+    colors = {'a':(0,0,139),'1':(0,0,255),'2':(71,99,255),'3':(92,92,205),'4':(128,128,240),'5':(122,160,255)}
+
+    if end == 0:
+        end = 9.0
+
+    start = int(begin*100)
+    stop = int(end*100)
+    
+    with open(grf_data, 'rb') as fp:
+        data = pickle.load(fp)
+    all_collisions = {'LAntenna':[], 'LFTibia':[], 'LFTarsus1':[], 'LFTarsus2':[], 'LFTarsus3':[], 'LFTarsus4':[], 'LFTarsus5':[], 'RFTarsus5':[], 'RFTarsus4':[], 'RFTarsus3':[], 'RFTarsus2':[], 'RFTarsus1':[], 'RFTibia':[], 'RAntenna':[]}#, 'LEye':[], 'REye':[]}
+    forces = {}
+    angles = {}
+    for key, val in all_collisions.items():
+        if side in key and 'Antenna' not in key:
+            forces[key]=val
+            angles[key]=val
+
+    for segment, coll in data.items():
+        if segment in forces.keys():
+            for key, vals in coll.items():
+                #if key in all_collisions.keys():
+                forces[segment].append(vals.transpose()[0])                    
+                angles[segment].append(vals.transpose()[1])
+
+    raw_imgs=[]
+    ind_folder = experiment.find('df3d')
+    imgs_folder = experiment[:ind_folder-1]
+    for frame in range(start,stop):
+        if side=='L':
+            cam_num = 1
+        elif side=='R':
+            cam_num = 5
+        img_name = imgs_folder + '/camera_' +str(cam_num)+ '_img_' + '{:06}'.format(frame) + '.jpg'
+        #print(img_name)
+        img = cv.imread(img_name)
+        raw_imgs.append(img)
+
+    for i, (leg, force) in enumerate(forces.items()):
+        if side in leg:
+            sum_force = np.sum(np.array(force), axis = 0)
+            leg_force = np.delete(sum_force,0)
+            time = np.arange(0,len(leg_force),1)/100
+            stance_ind = np.where(leg_force>0)[0]
+            if stance_ind.size!=0:
+                stance_diff = np.diff(stance_ind)
+                stance_lim = np.where(stance_diff>1)[0]
+                stance=[stance_ind[0]-1]
+                for ind in stance_lim:
+                    stance.append(stance_ind[ind]+1)
+                    stance.append(stance_ind[ind+1]-1)
+                stance.append(stance_ind[-1])
+                start_gait_list = np.where(np.array(stance) >= start)[0]
+                if len(start_gait_list)>0:
+                    start_gait = start_gait_list[0]
+                else:
+                    start_gait = start            
+                stop_gait_list = np.where(np.array(stance) <= stop)[0]
+                if len(stop_gait_list)>0:
+                    stop_gait = stop_gait_list[-1]+1
+                else:
+                    stop_gait = start_gait
+                stance_plot = stance[start_gait:stop_gait]
+                if start_gait%2 != 0:
+                    stance_plot.insert(0,start)
+                if len(stance_plot)%2 != 0:
+                    stance_plot.append(stop)
+
+                bodyPart = leg[2:]
+                if 'Tarsus' in bodyPart:
+                    bodyPart = 'Claw'
+                    prev = 'Tarsus'
+                    if '1' in leg[2:]:
+                        div = 1/5
+                    elif '2' in leg[2:]:
+                        div = 2/6
+                    elif '3' in leg[2:]:
+                        div = 3/6
+                    elif '4' in leg[2:]:
+                        div = 4/6
+                    elif '5' in leg[2:]:
+                        div = 5/6
+                if 'Tibia' in bodyPart:
+                    bodyPart = 'Tarsus'
+                    prev = 'Tarsus'
+                    div = 1
+                for ind in range(0,len(stance_plot),2):
+                    for frame in range(stance_plot[ind],stance_plot[ind+1]):
+                        
+                        x_base = data_2d[cam_num][side+'F_leg'][bodyPart][frame][0]
+                        y_base = data_2d[cam_num][side+'F_leg'][bodyPart][frame][1]
+
+                        x_prev = data_2d[cam_num][side+'F_leg'][prev][frame][0]
+                        y_prev = data_2d[cam_num][side+'F_leg'][prev][frame][1]
+
+                        x_px = int(x_prev + div*(x_base-x_prev))
+                        y_px = int(y_prev + div*(y_base-y_prev))
+                        
+                        start_pnt = [x_px, y_px]
+                        force_vals = np.array(forces[leg]).transpose()[frame+1]
+                        
+                        poi = np.where(force_vals>0)[0]
+                        if poi.size!=0:
+                            mean_angle = np.mean(np.array(angles[leg]).transpose()[frame+1][poi])
+                        else:
+                            mean_angle = 0
+                        #if leg == 'LF':
+                        #    print(frame,mean_angle*180/np.pi)
+                        
+                        force_x = leg_force[frame]*np.cos(mean_angle)*grfScalingFactor
+                        force_z = leg_force[frame]*np.sin(mean_angle)*grfScalingFactor
+                        h, w, c = raw_imgs[frame-start].shape
+                        end_pnt = [x_px+(force_x*h/(2*scale)), y_px-(force_z*h/(2*scale))]
+                        color = colors[leg[-1]]
+                        raw_imgs[frame-start] = draw_lines(raw_imgs[frame-start],start_pnt,end_pnt,color=color,thickness=3,arrowHead=True)
+                       
+    for i, img in enumerate(raw_imgs):
+        print('\rFrame: ' + str(i+start),end='')
+        if save_imgs:
+            file_name = experiment.split('/')[-1]
+            new_folder = 'results/'+file_name.replace('.pkl','/')+'grf_on_raw'
+            if not os.path.exists(new_folder):
+                os.makedirs(new_folder)
+            name = new_folder + '/img_' + '{:06}'.format(i) + '.jpg'
+            cv.imwrite(name,img)
+        else:
+            #print(np.array(grf['LF']).transpose()[i+start+1], np.array(angle['LF']).transpose()[i+start+1]*180/np.pi)
+            cv.imshow('img',img)
+            cv.waitKey(pause)
+    cv.destroyAllWindows()
+    
+def draw_grf_on_imgs(data_2d, experiment, sim_data='walking', side='L', begin=0, end=0, save_imgs=False,pause=0,grfScalingFactor=10,scale=10):
     data={}
     sim_res_folder = '/home/nely/SimFly/kinematic_matching/results/'
     grf_data = sim_res_folder + 'grf_data_ball_' + sim_data + '.pkl'
@@ -507,7 +683,7 @@ def draw_grf_on_imgs(data_2d, experiment, sim_data='walking', side='L', begin=0,
     for leg, force in data.items():
         grf[leg[:2]].append(force.transpose()[0])
         angle[leg[:2]].append(force.transpose()[1])
-
+    
     raw_imgs=[]
     ind_folder = experiment.find('df3d')
     imgs_folder = experiment[:ind_folder-1]
@@ -572,16 +748,12 @@ def draw_grf_on_imgs(data_2d, experiment, sim_data='walking', side='L', begin=0,
                         end_pnt = [x_px+(force_x*h/(2*scale)), y_px-(force_z*h/(2*scale))]
                         color = colors[leg+'_leg']
                         raw_imgs[frame-start] = draw_lines(raw_imgs[frame-start],start_pnt,end_pnt,color=color,thickness=3,arrowHead=True)
-                        #coord = (x_px, y_px)   
-                        #radius = 8
-                        #color = (0, 0, 255) 
-                        #thickness = -1
-                        #raw_imgs[frame-start] = cv.circle(raw_imgs[frame-start],coord,radius,color,thickness)
+                       
     for i, img in enumerate(raw_imgs):
         print('\rFrame: ' + str(i+start),end='')
         if save_imgs:
             file_name = experiment.split('/')[-1]
-            new_folder = 'results/'+file_name.replace('.pkl','/')+'grf_on_2d'
+            new_folder = 'results/'+file_name.replace('.pkl','/')+'grf_on_raw'
             if not os.path.exists(new_folder):
                 os.makedirs(new_folder)
             name = new_folder + '/img_' + '{:06}'.format(i) + '.jpg'
@@ -672,7 +844,7 @@ def draw_lines(img, start, end, color = (255, 0, 0), thickness=5, arrowHead=Fals
 
     if arrowHead:
         if np.linalg.norm(coords_prev-coords_next)>100:
-            tL = 0.1
+            tL = 0.25
         else:
             tL = 0.5
         cv.arrowedLine(img, start_point, end_point, color, thickness, tipLength = tL)
