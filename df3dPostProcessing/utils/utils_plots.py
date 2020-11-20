@@ -337,7 +337,7 @@ def plot_gait_diagram(begin=0,end=0):
     plt.show()
 '''
 
-def plot_collisions_diagram(sim_data, begin=0, end=0, opt_res=False):
+def plot_collisions_diagram(sim_data, begin=0, end=0, opt_res=False, generation='', exp=''):
     data={}
     sim_res_folder = '/home/nely/SimFly/kinematic_matching/results/'
 
@@ -345,8 +345,9 @@ def plot_collisions_diagram(sim_data, begin=0, end=0, opt_res=False):
         if not opt_res:
             collisions_data = sim_res_folder + 'grf_data_ball_walking.pkl'
         else:
-            sim_res_folder='/home/nely/SimFly/GIT/farms_models_data/drosophila_v3/simulation/Results/'
-            collisions_data = sim_res_folder + 'grf_data_optimization.pkl'
+            #sim_res_folder='/home/nely/SimFly/GIT/farms_models_data/drosophila_v3/simulation/Results/'
+            sim_res_folder='/home/lobato/NeuroMechFly/scripts/Optimization/Output_data/grf/'
+            collisions_data = sim_res_folder + exp +'/grf_optimization_gen_'+generation+'.pkl'
     elif sim_data == 'grooming':
         collisions_data = sim_res_folder + 'selfCollisions_data_ball_grooming.pkl'
 
@@ -363,7 +364,7 @@ def plot_collisions_diagram(sim_data, begin=0, end=0, opt_res=False):
         data = pickle.load(fp)    
 
     if sim_data == 'walking':
-        title_plot = 'Gait diagram'
+        title_plot = 'Gait diagram: gen ' + str(int(generation)+1) if opt_res else 'Gait diagram' 
         collisions = {'LF':[],'LM':[],'LH':[],'RF':[],'RM':[],'RH':[]}            
         for leg, force in data.items():
             collisions[leg[:2]].append(force.transpose()[0])
@@ -426,6 +427,196 @@ def plot_collisions_diagram(sim_data, begin=0, end=0, opt_res=False):
     elif sim_data == 'grooming':
         black_patch = mpatches.Patch(color='black', label='Collision')
     axs[0].legend(handles=[black_patch],loc= 'upper right',bbox_to_anchor=(1.1, 1))
+    plt.show()
+
+def plot_opt_res(begin=0,end=0,key='Coxa',plot_act=True,plot_torques=True,plot_angles=True):
+    opt_res_folder='/home/lobato/NeuroMechFly/scripts/Optimization/Results/'
+    muscles_data = opt_res_folder + 'muscle/outputs.h5' 
+    angles_data = opt_res_folder + 'physics/joint_positions.h5'
+
+    if end == 0:
+        end = 5.0
+
+    start = int(begin*1000)
+    stop = int(end*1000)
+
+    data2plot={}
+    mn_flex = {}
+    mn_ext = {}
+    torques = {}
+    angles = {}
+    if plot_act:
+        data= pd.read_hdf(muscles_data)
+        for joint, val in data.items():
+            if key in joint and 'act' in joint and 'active' not in joint and ('Coxa' in joint or 'Femur' in joint or 'Tibia' in joint):
+                if key == 'Coxa' and ('M' in joint or 'H' in joint):
+                    if 'roll' in joint:
+                        name = joint.split('_')[1]+' roll '+joint.split('_')[3]
+                        if 'flexor' in joint:
+                            mn_flex[name]=val
+                        elif 'extensor' in joint:
+                            mn_ext[name]=val
+                else:
+                    name = joint.split('_')[1]+' '+joint.split('_')[2]
+
+                    if 'flexor' in joint:
+                        mn_flex[name]=val
+                    elif 'extensor' in joint:
+                        mn_ext[name]=val
+                    
+        data2plot['mn_flex'] = mn_flex
+        data2plot['mn_ext'] = mn_ext
+
+
+    if plot_torques:
+        data= pd.read_hdf(muscles_data)
+        for joint, val in data.items():
+            if key in joint and 'torque' in joint and ('Coxa' in joint or 'Femur' in joint or 'Tibia' in joint):
+                if key == 'Coxa' and ('M' in joint or 'H' in joint):
+                    if 'roll' in joint:
+                        name = joint.split('_')[1]+' roll'
+                        torques[name]=val
+                else:
+                    name = joint.split('_')[1]
+                    torques[name]=val
+        data2plot['torques']=torques
+    if plot_angles:
+        data= pd.read_hdf(angles_data)
+        for joint, val in data.items():
+            if key in joint:# and ('Coxa' in joint or 'Femur' in joint or 'Tibia' in joint):
+                joint_name = joint.split('_')
+                if len(joint_name)>2:
+                    if 'roll' in joint and ('M' in joint or 'H' in joint):
+                        name = joint_name[1]+' '+joint_name[2]
+                        angles[name]=val
+                else:
+                    if 'F' in joint:
+                        name = joint.split('_')[1]
+                        angles[name]=val
+        data2plot['angles']=angles
+
+    fig, axs = plt.subplots(len(data2plot.keys()), sharex=True)
+
+    for i, (plot, data) in enumerate(data2plot.items()):
+        if plot == 'mn_flex' or plot == 'mn_ext':
+            for joint, act in data.items():
+                time = np.arange(0,len(act),1)/1000
+                axs[i].plot(time[start:stop], act[start:stop],label=joint)
+            axs[i].set_ylabel('MN activation - ' + plot.split('_')[1] + ' (a.u.)')
+            axs[i].set_ylim(0.3,2.1)
+
+        if plot == 'torques':
+            for joint, torq in data.items():
+                time = np.arange(0,len(torq),1)/1000
+                axs[i].plot(time[start:stop], torq[start:stop]*100,label=joint)
+            axs[i].set_ylabel('Joint torque ' + r'$(\mu Nm)$')
+
+        if plot == 'angles':
+            for joint, ang in data.items():
+                time = np.arange(0,len(ang),1)/1000
+                axs[i].plot(time[start:stop], ang[start:stop]*180/np.pi,label=joint)
+            axs[i].set_ylabel('Joint angle (deg)')        
+            
+        axs[i].grid(True)
+        axs[i].legend()
+
+    axs[len(axs)-1].set_xlabel('Time (s)')
+    plt.show()
+    
+
+def plot_fly_path2(begin=0, end=0, sequence=False, save_imgs=False, exp='', heading=True, opt_res=False,generations=[]):
+
+    ball_data_list=[]
+    colors = ['winter','copper','Purples','Greens','Oranges']
+
+    fig = plt.figure()  
+    ax = plt.axes()
+    m = MarkerStyle(marker=r'$\rightarrow$')
+    ax.set_xlabel('x (mm)')
+    ax.set_ylabel('y (mm)')
+
+    val_max = 0
+    
+    if not opt_res:
+        sim_res_folder = '/home/nely/SimFly/kinematic_matching/results/'
+        ball_data_list.append(sim_res_folder + 'ballRot_data_ball_walking.pkl')
+    else:
+        sim_res_folder='/home/lobato/NeuroMechFly/scripts/Optimization/Output_data/ballRotations/'
+        for gen in generations:
+            ball_data_list.append(sim_res_folder + exp +'/ballRot_optimization_gen_'+gen+'.pkl')
+        
+    for ind, ball_data in enumerate(ball_data_list):
+
+        with open(ball_data, 'rb') as fp:
+            data = pickle.load(fp)
+
+        if end == 0:
+            end = len(data)            
+
+        data_array = np.array(data)
+        x_diff = np.diff(-data_array.transpose()[0])
+        y_diff = np.diff(data_array.transpose()[1])
+        #th = -np.diff(data_array.transpose()[2])
+
+        x=[0]
+        y=[0]
+        for i in range(begin,end-1):#, coords in enumerate(x_diff[begin:end]):
+            if heading:
+                th = data[i][2]
+                x_new = x_diff[i]*np.cos(th) - y_diff[i]*np.sin(th)
+                y_new = y_diff[i]*np.cos(th) + x_diff[i]*np.sin(th)
+                x.append(x[-1]+x_new)
+                y.append(y[-1]+y_new)
+            else:
+                x.append(data[i][0])
+                y.append(data[i][1])
+
+            if sequence:
+                print('\rFrame: ' + str(i),end='')
+                sc = ax.scatter(x,y,c=np.linspace(begin/100,len(x)/100,len(x)),cmap='winter',vmin=begin/100,vmax=end/100)
+
+                m._transform.rotate_deg(th*180/np.pi)        
+                ax.scatter(x[-1], y[-1], marker=m, s=200,color='black')
+                m._transform.rotate_deg(-th*180/np.pi)
+
+                if i == 0:
+                    sc.set_clim([begin/100,end/100])
+                    cb = plt.colorbar(sc)
+                    cb.set_label('Time (s)')
+
+                ax.set_xlabel('x (mm)')
+                ax.set_ylabel('y (mm)')
+                if save_imgs:
+                    file_name = exp.split('/')[-1]
+                    new_folder = 'results/'+file_name.replace('.pkl','/')+'fly_path'
+                    if not os.path.exists(new_folder):
+                        os.makedirs(new_folder)
+                    name = new_folder + '/img_' + '{:06}'.format(i) + '.jpg'
+                    fig.set_size_inches(6,4)
+                    plt.savefig(name, dpi=300)
+                else:
+                    plt.draw()
+                    plt.pause(0.001)
+                ax.clear()
+
+        if opt_res:
+            max_x = np.max(np.array(x))
+
+            if max_x > val_max:
+                val_max = max_x
+            
+            lim = val_max + 0.05*val_max        
+            ax.set_xlim(-2, lim)
+            ax.set_ylim(-lim/2, lim/2)
+
+        if not sequence:
+            #sc = ax.scatter(x,y,c=np.arange(begin/100,end/100,0.01),cmap=colors[ind])
+            #sc.set_clim([begin/100,end/100])
+            #cb = plt.colorbar(sc)
+            #if ind==0:
+            #    cb.set_label('Time (s)')
+            ax.plot(x,y,linewidth=2,label='Gen ' + str(int(generations[ind])+1))
+    ax.legend()
     plt.show()
     
 
