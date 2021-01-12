@@ -21,6 +21,8 @@ import matplotlib.transforms as mtransforms
 import matplotlib.patches as mpatches
 import cv2 as cv
 from matplotlib.markers import MarkerStyle
+from pathlib import Path
+import pkgutil
 
 def plot_angles(angles,key,degrees=True):
     leg=angles[key+'_leg']
@@ -53,13 +55,16 @@ def plot_angles_torques_grf(leg_key, angles={}, sim_data='walking', exp_dir='exp
                    'CTr roll':['roll_tr','Femur_roll'],
                    'FTi pitch':['th_ti','Tibia'],
                    'TiTa pitch':['th_ta','Tarsus1']}
+
+    pkg_path = Path(pkgutil.get_loader("NeuroMechFly").get_filename())
+    sim_res_folder = os.path.join(pkg_path.parents[1],'scripts/KM/results')
     
-    sim_res_folder = '/home/nely/SimFly/kinematic_matching/results/'
-    torques_data = sim_res_folder + 'torques_data_ball_' + sim_data + '.pkl'
+    #sim_res_folder = '/home/nely/SimFly/kinematic_matching/results/'
+    torques_data = sim_res_folder + '/torques_data_ball_' + sim_data + '.pkl'
     if sim_data == 'walking':
-        grf_data = sim_res_folder + 'grf_data_ball_' + sim_data + '.pkl'
+        grf_data = sim_res_folder + '/grf_data_ball_' + sim_data + '.pkl'
     elif sim_data == 'grooming':
-        collisions_data = sim_res_folder + 'selfCollisions_data_ball_' + sim_data + '.pkl'
+        collisions_data = sim_res_folder + '/selfCollisions_data_ball_' + sim_data + '.pkl'
 
     if end == 0:
         end = 9.0
@@ -339,17 +344,17 @@ def plot_gait_diagram(begin=0,end=0):
 
 def plot_collisions_diagram(sim_data, begin=0, end=0, opt_res=False, generation='', exp=''):
     data={}
-    sim_res_folder = '/home/nely/SimFly/kinematic_matching/results/'
+    pkg_path = Path(pkgutil.get_loader("NeuroMechFly").get_filename())
+    sim_res_folder = os.path.join(pkg_path.parents[1],'scripts/KM/results')
 
     if sim_data == 'walking':
         if not opt_res:
-            collisions_data = sim_res_folder + 'grf_data_ball_walking.pkl'
+            collisions_data = sim_res_folder + '/grf_data_ball_walking.pkl'
         else:
-            #sim_res_folder='/home/nely/SimFly/GIT/farms_models_data/drosophila_v3/simulation/Results/'
-            sim_res_folder='/home/lobato/NeuroMechFly/scripts/Optimization/Output_data/grf/'
-            collisions_data = sim_res_folder + exp +'/grf_optimization_gen_'+generation+'.pkl'
+            sim_res_folder = os.path.join(pkg_path.parents[1],'scripts/Optimization/Output_data/grf',exp)
+            collisions_data = sim_res_folder +'/grf_optimization_gen_'+generation+'.pkl'
     elif sim_data == 'grooming':
-        collisions_data = sim_res_folder + 'selfCollisions_data_ball_grooming.pkl'
+        collisions_data = sim_res_folder + '/selfCollisions_data_ball_grooming.pkl'
 
     if end == 0:
         if not opt_res:
@@ -429,10 +434,12 @@ def plot_collisions_diagram(sim_data, begin=0, end=0, opt_res=False, generation=
     axs[0].legend(handles=[black_patch],loc= 'upper right',bbox_to_anchor=(1.1, 1))
     plt.show()
 
-def plot_opt_res(begin=0,end=0,key='Coxa',plot_act=True,plot_torques=True,plot_angles=True):
-    opt_res_folder='/home/lobato/NeuroMechFly/scripts/Optimization/Results/'
-    muscles_data = opt_res_folder + 'muscle/outputs.h5' 
-    angles_data = opt_res_folder + 'physics/joint_positions.h5'
+def plot_opt_res(begin=0,end=0,key='Coxa',plot_act=True,plot_torques=True,plot_angles=True,exp='',generation=''):
+    pkg_path = Path(pkgutil.get_loader("NeuroMechFly").get_filename())
+    opt_res_folder = os.path.join(pkg_path.parents[1],'scripts/Optimization/Output_data')
+    
+    muscles_data = opt_res_folder + '/muscles/' + exp + '/outputs_optimization_gen_'+generation+'.h5'
+    angles_data = opt_res_folder + '/angles/' + exp + '/jointpos_optimization_gen_'+generation+'.h5'
 
     if end == 0:
         end = 5.0
@@ -510,6 +517,7 @@ def plot_opt_res(begin=0,end=0,key='Coxa',plot_act=True,plot_torques=True,plot_a
                 time = np.arange(0,len(torq),1)/1000
                 axs[i].plot(time[start:stop], torq[start:stop]*100,label=joint)
             axs[i].set_ylabel('Joint torque ' + r'$(\mu Nm)$')
+            axs[i].set_ylim(-2,2)
 
         if plot == 'angles':
             for joint, ang in data.items():
@@ -537,13 +545,15 @@ def plot_fly_path2(begin=0, end=0, sequence=False, save_imgs=False, exp='', head
 
     val_max = 0
     
+    pkg_path = Path(pkgutil.get_loader("NeuroMechFly").get_filename())
+    
     if not opt_res:
-        sim_res_folder = '/home/nely/SimFly/kinematic_matching/results/'
-        ball_data_list.append(sim_res_folder + 'ballRot_data_ball_walking.pkl')
+        sim_res_folder = os.path.join(pkg_path.parents[1],'scripts/KM/results')
+        ball_data_list.append(sim_res_folder + '/ballRot_data_ball_walking.pkl')
     else:
-        sim_res_folder='/home/lobato/NeuroMechFly/scripts/Optimization/Output_data/ballRotations/'
+        sim_res_folder = os.path.join(pkg_path.parents[1],'scripts/Optimization/Output_data/ballRotations',exp)
         for gen in generations:
-            ball_data_list.append(sim_res_folder + exp +'/ballRot_optimization_gen_'+gen+'.pkl')
+            ball_data_list.append(sim_res_folder +'/ballRot_optimization_gen_'+gen+'.pkl')
         
     for ind, ball_data in enumerate(ball_data_list):
 
@@ -720,8 +730,11 @@ def plot_fly_path(begin=0, end=0, sequence=True, save_imgs=False, experiment='',
 
 def draw_collisions_on_imgs(data_2d, experiment, sim_data='grooming', side='L', begin=0, end=0, save_imgs=False,pause=0,grfScalingFactor=10,scale=120):
     data={}
-    sim_res_folder = '/home/nely/SimFly/kinematic_matching/results/'
-    grf_data = sim_res_folder + 'selfCollisions_data_ball_' + sim_data + '.pkl'
+
+    pkg_path = Path(pkgutil.get_loader("NeuroMechFly").get_filename())
+    sim_res_folder = os.path.join(pkg_path.parents[1],'scripts/KM/results')
+    
+    grf_data = sim_res_folder + '/selfCollisions_data_ball_' + sim_data + '.pkl'
 
     colors = {'a':(0,0,139),'1':(0,0,255),'2':(71,99,255),'3':(92,92,205),'4':(128,128,240),'5':(122,160,255)}
 
@@ -854,10 +867,13 @@ def draw_collisions_on_imgs(data_2d, experiment, sim_data='grooming', side='L', 
             cv.waitKey(pause)
     cv.destroyAllWindows()
     
-def draw_grf_on_imgs(data_2d, experiment, sim_data='walking', side='L', begin=0, end=0, save_imgs=False,pause=0,grfScalingFactor=10,scale=10):
+def draw_grf_on_imgs(data_2d, experiment, sim_data='walking', side='L', begin=0, end=0, save_imgs=False,pause=0,grfScalingFactor=10,scale=12):
     data={}
-    sim_res_folder = '/home/nely/SimFly/kinematic_matching/results/'
-    grf_data = sim_res_folder + 'grf_data_ball_' + sim_data + '.pkl'
+
+    pkg_path = Path(pkgutil.get_loader("NeuroMechFly").get_filename())
+    sim_res_folder = os.path.join(pkg_path.parents[1],'scripts/KM/results')
+    
+    grf_data = sim_res_folder + '/grf_data_ball_' + sim_data + '.pkl'
 
     colors = {'LF_leg':(0,0,204),'LM_leg':(51,51,255),'LH_leg':(102,102,255),'RF_leg':(153,76,0),'RM_leg':(255,128,0),'RH_leg':(255,178,102)}
 
@@ -1026,6 +1042,75 @@ def draw_legs_from_3d(data,exp_dir,data_2d,side='L',dir_name='traking_2d_from_3d
         cv.waitKey(pause)
     cv.destroyAllWindows()
 
+def draw_legs_from_2d(cams_info,data_2d,exp_dir,side='L',begin=0,end=0,saveimgs = False,pause=0,show_joints=True,dir_name='legsJoints'):
+    
+    for key, info in cams_info.items():
+        r = R.from_dcm(info['R']) 
+        th = r.as_euler('zyx', degrees=True)[1]
+        if 90-th<15 and side=='R':
+            data = data_2d[key-1]
+            cam_id = key-1 
+        elif 90-th>165 and side=='L':
+            data = data_2d[key-1]
+            cam_id = key-1
+        #elif abs(th)+1 < 10:
+        #    front_view['F_points2d'] = data_2d[key-1]
+        #    front_view['cam_id'] = key-1
+    
+    colors = {'LF_leg':(0,0,204),'LM_leg':(51,51,255),'LH_leg':(102,102,255),'RF_leg':(153,76,0),'RM_leg':(255,128,0),'RH_leg':(255,178,102)}
+    
+    if end == 0:
+        end = len(data['LF_leg']['Coxa'])
+    
+    for frame in range(begin,end):
+        df3d_dir = exp_dir.find('df3d')
+        folder = exp_dir[:df3d_dir]
+        img_name = folder + 'camera_' + str(cam_id) + '_img_' + '{:06}'.format(frame) + '.jpg'
+        img = cv.imread(img_name)
+        for leg, body_parts in data.items():
+            if leg[0] == 'L' or leg[0]=='R':
+                color = colors[leg]
+                for segment, points in body_parts.items():
+                    if segment != 'Coxa':
+                        if 'Femur' in segment:
+                            start_point = data[leg]['Coxa'][frame]
+                            end_point = points[frame]
+                        if 'Tibia' in segment:
+                            start_point = data[leg]['Femur'][frame]
+                            end_point = points[frame]
+                        if 'Tarsus' in segment:
+                            start_point = data[leg]['Tibia'][frame]
+                            end_point = points[frame]
+                        if 'Claw' in segment:
+                            start_point = data[leg]['Tarsus'][frame]
+                            end_point = points[frame]
+
+                        if show_joints:
+                            img = draw_joints(img, start_point,color=color)
+                            if 'Claw' in segment:
+                                img = draw_joints(img, end_point,color=color)
+                        img = draw_lines(img,start_point,end_point,color=color)
+                        
+        if saveimgs:
+            file_name = exp_dir.split('/')[-1]
+            new_folder = 'results/'+file_name.replace('.pkl','/')+'tracking_2d_'+dir_name+'/'
+            if not os.path.exists(new_folder):
+                os.makedirs(new_folder)
+            name = new_folder + 'camera_' + str(cam_id) + '_img_' + '{:06}'.format(frame) + '.jpg'
+            cv.imwrite(name,img)
+        else:
+            cv.imshow('img',img)
+            cv.waitKey(pause)
+    cv.destroyAllWindows()
+
+def draw_joints(img,start,radius=8,color=(255,0,0),thickness=-1):
+    coords = np.array(start).astype(int)
+    joint = (coords[0],coords[1])
+
+    cv.circle(img, joint, radius, color, thickness)
+
+    return img
+
 def draw_lines(img, start, end, color = (255, 0, 0), thickness=5, arrowHead=False):
     coords_prev = np.array(start).astype(int)
     coords_next = np.array(end).astype(int)
@@ -1061,16 +1146,20 @@ def plot_SG_angles(angles,degrees=True):
     
     plt.show()
 
-def plot_3d_and_2d(data, plane='xz', begin=0,end=0,metric = 'raw_pos_aligned', savePlot = False):
+def plot_3d_and_2d(data, plane='xz', begin=0,end=0,metric = 'raw_pos_aligned', savePlot = False, pause=False):
     colors = {'LF':(1,0,0),'LM':(0,1,0),'LH':(0,0,1),'RF':(1,1,0),'RM':(1,0,1),'RH':(0,1,1)}
     if end == 0:
         end = len(data['LF_leg']['Coxa'][metric])
+    fig_3d = plt.figure()
+    if plane is not '':
+        view_2d = plt.figure()
     for frame in range(begin,end):
-        print(frame)
-        fig_3d = plt.figure()
-        fig_top = plt.figure()
+        print('\rFrame: '+str(frame),end='')
         ax_3d = fig_3d.add_subplot(111, projection='3d')
-        ax_2d = plt.axes()
+        
+        if plane is not '':
+            ax_2d = plt.axes()
+            
         for segment, landmark in data.items():
             if 'L' in segment or 'R' in segment:
                 x=[]
@@ -1110,13 +1199,25 @@ def plot_3d_and_2d(data, plane='xz', begin=0,end=0,metric = 'raw_pos_aligned', s
             figName = folder + 'pos_3d_frame_'+str(frame)+'.png'
             fig_3d.savefig(figName)
 
+        if plane is not '':
+            ax_2d.legend()
+            ax_2d.set_xlabel(plane[0]+' (mm)')
+            ax_2d.set_ylabel(plane[1]+' (mm)')
+            ax_2d.set_xlim(-1.5,1.5)
+            ax_2d.set_ylim(-1.5,1.5)
+            ax_2d.grid(True)
 
-        ax_2d.legend()
-        ax_2d.set_xlabel(plane[0]+' (mm)')
-        ax_2d.set_ylabel(plane[1]+' (mm)')
-        ax_2d.grid(True)
+        if pause:
+            plt.show()
+        else:
+            #plt.show(block=False)
+            plt.draw()
+            plt.pause(0.001)
+        fig_3d.clf()
+        if plane is not '':
+            view_2d.clf()
 
-        plt.show()
+    plt.close()
 
 def plot_fixed_coxa(aligned_dict,plane='xy'):
     metric = 'fixed_pos_aligned'
@@ -1231,7 +1332,7 @@ def plot_pos_series(data_dict, legs, joints, savePlot=False, gen = 'fly'):
                 plt.show()
 
 
-def plot_legs_from_angles(angles,data_dict,exp_dir,begin=0,end=0,plane='xz',saveImgs = False, dir_name='km', extraDOF = {}, ik_angles = False, pause = False,lim_axes=True,offset=0):
+def plot_legs_from_angles(angles,data_dict,exp_dir,begin=0,end=0,plane='xz',saveImgs = False, dir_name='km', extraDOF = {}, ik_angles = False, pause = False,lim_axes=True):
 
     #colors_real= {'LF_leg':(1,0,0),'LM_leg':(0,1,0),'LH_leg':(0,0,1),'RF_leg':(1,1,0),'RM_leg':(1,0,1),'RH_leg':(0,1,1)}
     #colors = {'LF_leg':(1,0.5,0.5),'LM_leg':(0.5,1,0.5),'LH_leg':(0.5,0.5,1),'RF_leg':(1,1,0.5),'RM_leg':(1,0.5,1),'RH_leg':(0.5,1,1)}
@@ -1263,9 +1364,9 @@ def plot_legs_from_angles(angles,data_dict,exp_dir,begin=0,end=0,plane='xz',save
     order = ['RH_leg','RM_leg','RF_leg','LH_leg','LM_leg','LF_leg']
     angles_rev = {leg:angles[leg] for leg in order}
 
-    lim_x = (-2,3)
-    lim_y = (-2,2)
-    lim_z = (-1.5,0.5)
+    lim_x = (-2.5,1.5)
+    lim_y = (-1.2,2)
+    lim_z = (-1.5,0.1)
     
     for frame in range(begin, end):
         print('\rFrame: '+str(frame),end='')
@@ -1303,7 +1404,7 @@ def plot_legs_from_angles(angles,data_dict,exp_dir,begin=0,end=0,plane='xz',save
             if ik_angles:
                 pos_3d = fk_from_ik(leg, name, data_dict, frame).transpose()
             else:
-                pos_3d = utils_angles.calculate_forward_kinematics(name, frame, leg, data_dict, extraDOF=extraDOF_vals,ik_angles=ik_angles,offset=offset).transpose()
+                pos_3d = utils_angles.calculate_forward_kinematics(name, frame, leg, data_dict, extraDOF=extraDOF_vals,ik_angles=ik_angles).transpose()
 
                       
             x = pos_3d[0]
@@ -1471,7 +1572,7 @@ def plot_error(errors_dict,begin=0,end=0,name='filename.png',dpi=300,save=False,
             vals = []
             for err in errors_dict[leg][angle]['min_error'][begin:end]:
                 mae = err[0]/(len(err)-1)
-                norm_error = mae/BL
+                norm_error = mae/BL*100
                 vals.append(norm_error)
 
             df_vals = pd.DataFrame(vals,columns=['norm_error'])

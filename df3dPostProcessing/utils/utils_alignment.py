@@ -4,12 +4,190 @@ import os
 from mpl_toolkits.mplot3d import Axes3D
 from scipy.spatial.transform import Rotation as R
 
-def align_data(exp_dict,skeleton='df3d'):
-    fix = fixed_lengths_and_base_point(exp_dict)
-    align = align_model(fix,skeleton)
-    
+def align_3d(pos_3d_dict,skeleton,template,scale):
+    if skeleton == 'prism':
+        pos_3d_dict = get_flycentric(pos_3d_dict)
+    fix = get_fix_coxae_pos(pos_3d_dict)
+    align = align_3d_to_template(fix,skeleton,template,scale)
     return align
 
+def get_flycentric(data, pixel_size=[5.86e-3,5.86e-3,5.86e-3]):
+    trans_dict = {}
+    for segment, landmarks in data.items():
+        trans_dict[segment] = {}
+        for landmark, pos in landmarks.items():
+            vals=[]
+            for i, p in enumerate(pos):
+                lm = data['LM_leg']['Coxa'][i]
+                rm = data['RM_leg']['Coxa'][i]
+                pos_zero = (lm + rm)/2
+                new_pos = (p - pos_zero)*pixel_size
+                vals.append(new_pos)
+            trans_dict[segment][landmark] = np.array(vals)
+
+    rot_dict = {}
+    for segment, landmarks in trans_dict.items():
+        rot_dict[segment] = {}
+        mid_zero = (trans_dict['LM_leg']['Coxa'][0] + trans_dict['RM_leg']['Coxa'][0])/2
+        hind_zero = (trans_dict['LH_leg']['Coxa'][0] + trans_dict['RH_leg']['Coxa'][0])/2
+        th_zero = np.arctan2(mid_zero[1]-hind_zero[1],mid_zero[0]-hind_zero[0])
+        for landmark, pos in landmarks.items():
+            vals=[]
+            for i, p in enumerate(pos):
+                mid = (trans_dict['LM_leg']['Coxa'][i] + trans_dict['RM_leg']['Coxa'][i])/2
+                hind = (trans_dict['LH_leg']['Coxa'][i] + trans_dict['RH_leg']['Coxa'][i])/2
+                th_rot = np.arctan2(mid[1]-hind[1],mid[0]-hind[0])                
+                rot_mat = R.from_euler('zyx', [-th_rot,0,0])
+                rot_pos = rot_mat.apply(p)
+                vals.append(rot_pos)
+            rot_dict[segment][landmark] = np.array(vals)
+                  
+    return rot_dict
+    
+    
+def get_fix_coxae_pos(pos_3d_dict):
+    extended_dict = {}
+    for segment, landmarks in pos_3d_dict.items():
+        if 'leg' in segment:
+            extended_dict[segment] = {}
+            for landmark, pos in landmarks.items():
+                extended_dict[segment][landmark]={}
+                pos_t = pos.transpose()
+                if 'Coxa' in landmark:
+                    mean_x = np.mean(pos_t[0])
+                    mean_y = np.mean(pos_t[1])
+                    mean_z = np.mean(pos_t[2])
+                    extended_dict[segment][landmark]['fixed_pos']=[mean_x,mean_y,mean_z]
+                    
+                extended_dict[segment][landmark]['raw_pos']=pos
+                  
+    return extended_dict
+
+'''
+def align_prism_to_template(fixed_dict,template,scale):
+    lm = fixed_dict['LM_leg']['Coxa']['fixed_pos']
+    rm = fixed_dict['RM_leg']['Coxa']['fixed_pos']
+    lh = fixed_dict['LH_leg']['Coxa']['fixed_pos']
+    rh = fixed_dict['RH_leg']['Coxa']['fixed_pos']
+
+    th_left = np.arctan2(lm[2]-lh[2],lm[0]-lh[0])
+    th_right = np.arctan2(rm[2]-rh[2],rm[0]-rh[0])
+    th_align={'L': th_left, 'R':th_right}
+    print([th*180/np.pi for th in th_align.values()])
+    if scale:
+        lengths = calculate_fix_lengths(fixed_dict, metric='raw_pos') 
+    
+    align_dict={}
+    for leg, joints in fixed_dict.items():
+        align_dict[leg]={}
+        if scale:
+            template_length = template[leg[:2]+'Coxa'][2]-template[leg[:2]+'Claw'][2]
+            tot_length = lengths[leg]['Claw']['total_length']
+            scale_factor = template_length/tot_length
+        else:
+            scale_factor = 1
+        for joint, data in joints.items():
+            align_dict[leg][joint]={}
+            for metric, coords in data.items():
+                if '_pos' in metric:
+                    pos_zero = np.array(coords) - np.array(fixed_dict[leg]['Coxa']['fixed_pos'])
+                    pos_zero_t = pos_zero.transpose()
+                    #pos_zero_flip = np.array([pos_zero_t[0],-pos_zero_t[1],pos_zero_t[2]]).transpose()
+                    rot_mat = R.from_euler('zyx', [th_align[leg[0]],0,0])
+                    rot_pos = rot_mat.apply(pos_zero)*scale_factor
+                    align_pos = rot_pos + template[leg[:2]+'Coxa']
+                    align_dict[leg][joint][metric+'_aligned']=align_pos
+
+    align_dict = calculate_fix_lengths(align_dict)
+    return align_dict
+'''
+def align_3d_to_template(fixed_dict,skeleton,template,scale):
+    lm = fixed_dict['LM_leg']['Coxa']['fixed_pos']
+    rm = fixed_dict['RM_leg']['Coxa']['fixed_pos']
+    lh = fixed_dict['LH_leg']['Coxa']['fixed_pos']
+    rh = fixed_dict['RH_leg']['Coxa']['fixed_pos']
+
+    if skeleton == 'df3d':
+        th_left = np.arctan2(lm[2]-lh[2],lm[0]-lh[0])
+        th_right = np.arctan2(rm[2]-rh[2],rm[0]-rh[0])
+    if skeleton == 'prism':
+        th_left = np.arctan2(lm[1]-lh[1],lm[0]-lh[0])
+        th_right = np.arctan2(rm[1]-rh[1],rm[0]-rh[0])
+        
+    th_align={'L': th_left, 'R':th_right} 
+    next_joints = {'Coxa':'Femur', 'Femur':'Tibia', 'Tibia':'Tarsus', 'Tarsus':'Claw'}
+    prev_joints = {'Femur':'Coxa', 'Tibia':'Femur', 'Tarsus':'Tibia', 'Claw':'Tarsus'}
+    if scale:
+        lengths = calculate_fix_lengths(fixed_dict, next_joints, metric='raw_pos')
+    
+    align_dict={}
+    for leg, joints in fixed_dict.items():
+        align_dict[leg]={}
+        for joint, data in joints.items():
+            align_dict[leg][joint]={}
+            
+            if scale:
+                if joint == 'Coxa':
+                    template_length = template[leg[:2]+joint][2]-template[leg[:2]+'Claw'][2]
+                    mean_length = lengths[leg]['Claw']['total_length']
+                else:
+                    template_length = template[leg[:2]+prev_joints[joint]][2]-template[leg[:2]+joint][2]
+                    mean_length = lengths[leg][prev_joints[joint]]['mean_length']
+                scale_factor = template_length/mean_length
+            else:
+                scale_factor = 1
+            
+            for metric, coords in data.items():
+                if '_pos' in metric:
+                    pos_zero = np.array(coords) - np.array(fixed_dict[leg]['Coxa']['fixed_pos'])
+                    if skeleton == 'df3d':
+                        pos_zero_t = pos_zero.transpose()
+                        pos_zero = np.array([pos_zero_t[0],-pos_zero_t[1],pos_zero_t[2]]).transpose()
+                        rot_mat = R.from_euler('zyx', [0,th_align[leg[0]],np.pi/2])
+                    if skeleton == 'prism':
+                        rot_mat = R.from_euler('zyx', [th_align[leg[0]],0,0])
+                    rot_pos = rot_mat.apply(pos_zero)*scale_factor
+                    align_pos = rot_pos + template[leg[:2]+'Coxa']
+                    align_dict[leg][joint][metric+'_aligned']=align_pos
+
+    align_dict = calculate_fix_lengths(align_dict, next_joints)
+    return align_dict
+
+def calculate_fix_lengths(data, next_joints, metric = 'raw_pos_aligned', data_used=0.7):
+    for name, leg in data.items():
+        lengths = []
+        for segment, body_part in leg.items():
+            if segment != 'Claw':
+                dist = []                
+                #if 'Coxa' in segment:
+                #    next_segment = 'Femur'
+                #    
+                #if 'Femur' in segment:
+                #    next_segment = 'Tibia'
+                    
+                #if 'Tibia' in segment:
+                #    next_segment = 'Tarsus'
+                    
+                #if 'Tarsus' in segment:
+                #    next_segment = 'Claw'
+                ind = int(len(body_part[metric]) * (1-data_used)/2)
+                for i, point in enumerate(body_part[metric]):
+                    a = point
+                    b = data[name][next_joints[segment]][metric][i] 
+                    dist.append(np.linalg.norm(a-b))
+                        
+                body_part['mean_length']=np.mean(dist[ind:-ind])
+                lengths.append(np.mean(dist))
+            else:
+                body_part['total_length']=np.sum(lengths)
+    return data
+
+#def align_data(exp_dict,skeleton='df3d'):
+#    fix = fixed_lengths_and_base_point(exp_dict)
+#    align = align_model(fix,skeleton)   
+#    return align
+
+'''    
 def fixed_lengths_and_base_point(raw_dict):
     new_dict = {}
     for segment, landmarks in raw_dict.items():
@@ -219,7 +397,7 @@ def rescale_using_2d_data(data_3d,data_2d,cams_info,exp_dir,pixelSize=[5.86e-3,5
     data_3d = recalculate_lengths(data_3d)
     
     return data_3d
-
+'''
 
 '''
 def rescale_using_2d_data(data_3d,data_2d,cams_info,exp_dir,pixelSize=[5.86e-3,5.86e-3],scale_procrustes = True,procrustes_factor=0.75):
@@ -388,86 +566,3 @@ def rescale_using_2d_data2(data_3d,data_2d,cams_info,exp_dir,pixelSize=[5.86e-3,
     
     return data_3d
 '''
-
-def recalculate_lengths(data):
-    for name, leg in data.items():
-        for segment, body_part in leg.items():
-            if segment != 'Claw':
-                dist = []
-                metric = 'raw_pos_aligned'
-                if 'Coxa' in segment:
-                    next_segment = 'Femur'
-                    
-                if 'Femur' in segment:
-                    next_segment = 'Tibia'
-                    
-                if 'Tibia' in segment:
-                    next_segment = 'Tarsus'
-                    
-                if 'Tarsus' in segment:
-                    next_segment = 'Claw'
-                    
-                for i, point in enumerate(body_part[metric]):
-                    a = point
-                    b = data[name][next_segment][metric][i] 
-                    dist.append(np.linalg.norm(a-b))
-                        
-                body_part['mean_length']=np.mean(dist)
-    return data
-
-def draw_legs_from_2d(cam_view,exp_dir,begin=0,end=0,saveimgs = False):
-    key = [k for k in cam_view.keys() if 'points2d' in k][0]
-    data = cam_view[key]
-    cam_id = cam_view['cam_id']
-    
-    colors = {'LF_leg':(0,0,204),'LM_leg':(51,51,255),'LH_leg':(102,102,255),'RF_leg':(153,76,0),'RM_leg':(255,128,0),'RH_leg':(255,178,102)}
-    
-    if end == 0:
-        end = len(data['LF_leg']['Coxa'])
-    
-    for frame in range(begin,end):
-        df3d_dir = exp_dir.find('df3d')
-        folder = exp_dir[:df3d_dir]
-        img_name = folder + 'camera_' + str(cam_id) + '_img_' + '{:06}'.format(frame) + '.jpg'
-        img = cv.imread(img_name)
-        for leg, body_parts in data.items():
-            if leg[0] == 'L' or leg[0]=='R':
-                color = colors[leg]
-                for segment, points in body_parts.items():
-                    if segment != 'Coxa':
-                        if 'Femur' in segment:
-                            start_point = data[leg]['Coxa'][frame]
-                            end_point = points[frame]
-                        if 'Tibia' in segment:
-                            start_point = data[leg]['Femur'][frame]
-                            end_point = points[frame]
-                        if 'Tarsus' in segment:
-                            start_point = data[leg]['Tibia'][frame]
-                            end_point = points[frame]
-                        if 'Claw' in segment:
-                            start_point = data[leg]['Tarsus'][frame]
-                            end_point = points[frame]
-                        img = draw_lines(img,start_point,end_point,color=color)
-        if saveimgs:
-            file_name = exp_dir.split('/')[-1]
-            new_folder = 'results/'+file_name.replace('.pkl','/')+'tracking_2d/'
-            if not os.path.exists(new_folder):
-                os.makedirs(new_folder)
-            name = new_folder + 'camera_' + str(cam_id) + '_img_' + '{:06}'.format(frame) + '.jpg'
-            cv.imwrite(name,img)
-        cv.imshow('img',img)
-        cv.waitKey(1)
-    cv.destroyAllWindows()
-
-
-def draw_lines(img, start, end, color = (255, 0, 0)):
-    coords_prev = np.array(start).astype(int)
-    coords_next = np.array(end).astype(int)
-
-    start_point = (coords_prev[0],coords_prev[1])
-    end_point = (coords_next[0],coords_next[1]) 
-    thickness = 5
-    
-    cv.line(img, start_point, end_point, color, thickness) 
-
-    return img
