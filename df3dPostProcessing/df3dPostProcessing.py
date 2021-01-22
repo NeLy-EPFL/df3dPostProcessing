@@ -3,6 +3,7 @@ import os
 from .utils.utils_alignment import align_data, rescale_using_2d_data
 from .utils.utils_angles import calculate_angles
 #from .utils.utils_plots import *
+from scipy.interpolate import pchip_interpolate
 
 df3d_skeleton = ['LFCoxa',
                  'LFFemur',
@@ -86,12 +87,32 @@ class df3dPostProcess:
         self.data_2d_dict = load_data_to_dict(self.raw_data_2d, skeleton)
         self.aligned_model = {}
 
-    def align_3d_data(self, rescale = True):
-        self.aligned_model = align_data(self.data_3d_dict,self.skeleton)
+    def align_3d_data(self, rescale = True, interpolation=True, begin=0, end=9, sample_rate = 0.01, new_sample_rate=0.001):
+        """ If interpolate option is choosed, this function interpolates the data given the x points and sample rates."""
+        aligned_model = align_data(self.data_3d_dict,self.skeleton)
         if rescale:
-            self.aligned_model = rescale_using_2d_data(self.aligned_model, self.data_2d_dict, self.raw_data_cams, self.res_dir)
-            
-        return self.aligned_model
+            aligned_model = rescale_using_2d_data(aligned_model, self.data_2d_dict, self.raw_data_cams, self.res_dir)
+        if interpolation:
+            aligned_dic = {key: {key2: {key3: list() for key3 in aligned_model[key][key2].keys()} for key2 in aligned_model[key].keys()} for key in aligned_model.keys()}
+            x = np.arange(begin,end,sample_rate)
+            x_new = np.arange(begin,end,new_sample_rate)
+            for key in aligned_dic.keys():
+                for key2 in aligned_dic[key].keys():
+                    for key3 in aligned_dic[key][key2].keys():
+                        if key3=='raw_pos_aligned':
+                            intp_x = pchip_interpolate(x,aligned_model[key][key2][key3][:,0],x_new)
+                            intp_y = pchip_interpolate(x,aligned_model[key][key2][key3][:,1],x_new)
+                            intp_z = pchip_interpolate(x,aligned_model[key][key2][key3][:,2],x_new)
+
+                            aligned_array = np.array([intp_x, intp_y, intp_z])
+                            aligned_dic[key][key2][key3] = aligned_array.T
+                        else:
+                            aligned_dic[key][key2][key3] = aligned_model[key][key2][key3]
+            self.aligned_model = aligned_dic
+            return self.aligned_model
+        else:
+            self.aligned_model = aligned_model
+            return self.aligned_model
 
     def calculate_leg_angles(self, begin = 0, end = 0, get_roll_tr = True):
         leg_angles = calculate_angles(self.aligned_model, begin, end, get_roll_tr)
