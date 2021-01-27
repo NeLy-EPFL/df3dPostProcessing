@@ -100,10 +100,10 @@ class df3dPostProcess:
                 for key2 in aligned_dic[key].keys():
                     for key3 in aligned_dic[key][key2].keys():
                         if key3=='raw_pos_aligned':
-                            intp_x = pchip_interpolate(x,aligned_model[key][key2][key3][:,0],x_new)
-                            intp_y = pchip_interpolate(x,aligned_model[key][key2][key3][:,1],x_new)
-                            intp_z = pchip_interpolate(x,aligned_model[key][key2][key3][:,2],x_new)
-
+                            intp_x = interpolate_smooth(aligned_model[key][key2][key3][:,0],0.01,0.001,0,smoothing=True, window_length=29)
+                            intp_y = interpolate_smooth(aligned_model[key][key2][key3][:,1],0.01,0.001,0,smoothing=True, window_length=29)
+                            intp_z = interpolate_smooth(aligned_model[key][key2][key3][:,2],0.01,0.001,0,smoothing=True, window_length=29)
+    
                             aligned_array = np.array([intp_x, intp_y, intp_z])
                             aligned_dic[key][key2][key3] = aligned_array.T
                         else:
@@ -113,7 +113,22 @@ class df3dPostProcess:
         else:
             self.aligned_model = aligned_model
             return self.aligned_model
+        
+    def interpolate_smooth(self,signal,sample_rate=0.01,new_sample_rate=0.001,begin=0,smoothing=True, window_length=None):
+        """ This function interpolates the signal based on PCHIP and smoothes it using Hamming window. """
+        end = begin + len(signal)*sample_rate
+        x = np.arange(begin,end,sample_rate)
+        x_new = np.arange(begin,end,new_sample_rate)
+        interpolated_signal = pchip_interpolate(x,signal,x_new)
+        if smoothing:
+            hamming_window = np.hamming(window_length)
+            stride = (window_length-1)*0.5
+            y = np.convolve(window/window.sum(), interpolated_signal, mode='valid')[stride:-1*stride]
+            return y
 
+        return interpolated_signal
+            
+        
     def calculate_leg_angles(self, begin = 0, end = 0, get_roll_tr = True):
         leg_angles = calculate_angles(self.aligned_model, begin, end, get_roll_tr)
         return leg_angles
