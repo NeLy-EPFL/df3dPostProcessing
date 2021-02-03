@@ -206,9 +206,10 @@ class df3dPostProcess:
 def triangulate_2d(data, exp_dir):
     img_folder = exp_dir[:exp_dir.find('df3d')]
     out_folder = exp_dir[:exp_dir.find('pose_result')]
+    num_images = data['points3d'].shape[0]
     
     from deepfly.CameraNetwork import CameraNetwork
-    camNet = CameraNetwork(image_folder=img_folder, output_folder=out_folder)
+    camNet = CameraNetwork(image_folder=img_folder, output_folder=out_folder, num_images=num_images)
 
     for cam_id in range(7): 
         camNet.cam_list[cam_id].set_intrinsic(data[cam_id]["intr"]) 
