@@ -44,7 +44,7 @@ def plot_angles(angles,key,degrees=True):
     
     plt.show()
 
-def plot_angles_torques_grf(leg_key, angles={}, sim_data='walking', exp_dir='experiment', plot_angles=True, plot_torques=True, plot_grf=True, plot_collisions=True, collisions_across=True, begin=0.0, end=0.0, save_imgs=False, dir_name='dataPlots',torqueScalingFactor=100, grfScalingFactor=10):    
+def plot_angles_torques_grf(leg_key, angles={}, sim_data='walking', exp_dir='experiment', plot_angles=True, plot_torques=True, plot_grf=True, plot_collisions=True, collisions_across=True, begin=0.0, end=0.0, save_imgs=False, dir_name='dataPlots',torqueScalingFactor=1, grfScalingFactor=1):    
 
     data2plot={}
 
@@ -79,7 +79,6 @@ def plot_angles_torques_grf(leg_key, angles={}, sim_data='walking', exp_dir='exp
             for key in angles_raw.keys():
                 if key in match_labels:
                     data2plot['angles'][label] = angles_raw[key]
-
     if plot_torques:
         with open(torques_data, 'rb') as fp:
             torques_all = pickle.load(fp)
@@ -239,12 +238,12 @@ def plot_angles_torques_grf(leg_key, angles={}, sim_data='walking', exp_dir='exp
                 torque_adj = np.delete(torque,0)
                 time = np.arange(0,len(torque_adj),1)/100
                 axs[i].plot(time[start:stop], torque_adj[start:stop]*torqueScalingFactor,label=joint)
-            axs[i].set_ylabel('Joint torque ' + r'$(\mu Nm)$')
+            axs[i].set_ylabel('Joint torque ' + r'$(\mu Nmm)$')
 
         if plot == 'grf':
             time = np.arange(0,len(leg_force),1)/100
             axs[i].plot(time[start:stop],leg_force[start:stop]*grfScalingFactor,color='black')
-            axs[i].set_ylabel('Ball reaction force (mN)')
+            axs[i].set_ylabel('Ball reaction force' + r'$(\mu N)$')
 
         if plot == 'collisions':
             time = np.arange(0,len(leg_force),1)/100
