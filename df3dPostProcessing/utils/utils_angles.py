@@ -42,23 +42,32 @@ def calculate_pitch(coxa_origin, femur_pos):
     return angle
 
 def calculate_roll(coxa_origin,femur_pos,tibia_pos,r,leg):
-    length = np.linalg.norm(femur_pos-coxa_origin)
+    #length = np.linalg.norm(femur_pos-coxa_origin)
     
-    if 'F_' in leg:
-        prev_joint = np.array([1,0,-length])
-        rot_axis = [0,0,1]
-    elif 'LM' in leg or 'LH' in leg:
-        prev_joint = np.array([0,-1,-length])
+    if 'RF' in leg:
+        prev_joint = np.array([1,0,0])
         rot_axis = [0,0,-1]
-    elif 'RM' in leg or 'RH' in leg:
-        prev_joint = np.array([0,1,-length])
+    elif 'RM' in leg:
+        prev_joint = np.array([0,-1,0])
+        rot_axis = [0,0,1]
+    elif 'RH' in leg:
+        prev_joint = np.array([-1,0,0])
+        rot_axis = [0,0,-1]
+    elif 'LF' in leg:
+        prev_joint = np.array([1,0,0])
+        rot_axis = [0,0,1]
+    elif 'LM' in leg:
+        prev_joint = np.array([0,1,0])
+        rot_axis = [0,0,-1]
+    elif 'LH' in leg:
+        prev_joint = np.array([-1,0,0])
         rot_axis = [0,0,1]
         
-    curr_joint = np.array([0,0,-length])
+    curr_joint = np.array([0,0,0])
     r_inv = r.inv()
     tibia = tibia_pos - coxa_origin
     next_joint = r_inv.apply(tibia)
-    next_joint[2] = -length
+    next_joint[2] = 0
     
 
     angle = angle_between_segments(prev_joint,curr_joint,next_joint,rot_axis)
@@ -72,19 +81,40 @@ def calculate_roll(coxa_origin,femur_pos,tibia_pos,r,leg):
 
 def calculate_roll_trochanter(leg_name, angles, data_dict,frame):
     leg_angles = angles[leg_name]
-    if 'LF' in leg_name or 'RF' in leg_name:
-        roll = leg_angles['roll'][frame]
-        rot_axis = [-1,0,0]
-    elif 'LM' in leg_name or 'LH' in leg_name:
-        roll = - (np.pi/2 + leg_angles['roll'][frame])
-        rot_axis = [0,1,0]
-    elif 'RM' in leg_name or 'RH' in leg_name:
+    if 'RF' in leg_name:
+        roll = np.pi-leg_angles['roll'][frame]
+        th_fe = np.pi-leg_angles['th_fe'][frame]
+        th_ti = np.pi-leg_angles['th_ti'][frame]
+        rot_axis = [1,0,0]    
+    elif 'RM' in leg_name:
         roll = np.pi/2 + leg_angles['roll'][frame]
+        th_fe = np.pi-leg_angles['th_fe'][frame]
+        th_ti = np.pi-leg_angles['th_ti'][frame]
         rot_axis = [0,-1,0]
+    elif 'RH' in leg_name:
+        roll = -leg_angles['roll'][frame]
+        th_fe = np.pi-leg_angles['th_fe'][frame]
+        th_ti = np.pi-leg_angles['th_ti'][frame]
+        rot_axis = [1,0,0]
+    elif 'LF' in leg_name:
+        roll = np.pi+leg_angles['roll'][frame]
+        th_fe = np.pi-leg_angles['th_fe'][frame]
+        th_ti = np.pi-leg_angles['th_ti'][frame]
+        rot_axis = [-1,0,0]
+    elif 'LM' in leg_name:
+        roll = -np.pi/2 - leg_angles['roll'][frame]
+        th_fe = np.pi-leg_angles['th_fe'][frame]
+        th_ti = np.pi-leg_angles['th_ti'][frame]
+        rot_axis = [0,-1,0]
+    elif 'LH' in leg_name:
+        roll = leg_angles['roll'][frame]
+        th_fe = np.pi-leg_angles['th_fe'][frame]
+        th_ti = np.pi-leg_angles['th_ti'][frame]
+        rot_axis = [-1,0,0]
     
     r1 = R.from_euler('zyx',[roll,leg_angles['pitch'][frame],leg_angles['yaw'][frame]])
-    r2 = R.from_euler('zyx',[0,leg_angles['th_fe'][frame],0])
-    r3 = R.from_euler('y',leg_angles['th_ti'][frame])
+    r2 = R.from_euler('zyx',[0,th_fe,0])
+    r3 = R.from_euler('y',th_ti)
 
     coxa_pos = data_dict['Coxa']['fixed_pos_aligned']    
     l_coxa = data_dict['Coxa']['mean_length']
@@ -115,15 +145,15 @@ def calculate_angles(aligned_dict,begin,end,get_roll_tr):
         angles_dict[leg]={}
         factor_zero = -np.pi
         if 'F' in leg:
-            rot_axis = [0,1,0]
-        elif 'LM' in leg:
-            rot_axis = [1,0,0]
-        elif 'LH' in leg:
-            rot_axis = [0,-1,0]
+            flex_axis = [0,1,0]
         elif 'RM' in leg:
-            rot_axis = [-1,0,0]
+            flex_axis = [1,0,0]
         elif 'RH' in leg:
-            rot_axis = [0,-1,0]
+            flex_axis = [0,-1,0]
+        elif 'LM' in leg:
+            flex_axis = [-1,0,0]
+        elif 'LH' in leg:
+            flex_axis = [0,-1,0]
         for joint, data in joints.items():
             angles = []
             if 'Coxa' in joint:
@@ -152,12 +182,14 @@ def calculate_angles(aligned_dict,begin,end,get_roll_tr):
                     coxa_pos = joints['Coxa']['fixed_pos_aligned']
                     femur_pos = data['raw_pos_aligned'][i]
                     tibia_pos = joints['Tibia']['raw_pos_aligned'][i]                        
-                    th_femur = angle_between_segments(coxa_pos, femur_pos, tibia_pos,rot_axis)
+                    th_femur = angle_between_segments(coxa_pos, femur_pos, tibia_pos,flex_axis)
                     #print(th_femur*180/np.pi)
-                    if th_femur > 0:
-                        th_femur = factor_zero + th_femur
-                    else:
-                        th_femur = factor_zero - th_femur                        
+                    #if th_femur > 0:
+                    #    th_femur = factor_zero + th_femur
+                    #else:
+                    #    th_femur = factor_zero - th_femur
+                    if (('RF' in leg) or ('LF' in leg)) and th_femur<0:
+                        th_femur = -th_femur
                     angles_dict[leg]['th_fe'].append(th_femur)
                     
             if 'Tibia' in joint:
@@ -169,16 +201,22 @@ def calculate_angles(aligned_dict,begin,end,get_roll_tr):
                     femur_pos = joints['Femur']['raw_pos_aligned'][i]
                     tibia_pos = data['raw_pos_aligned'][i]
                     tarsus_pos = joints['Tarsus']['raw_pos_aligned'][i]
-                    th_tibia = angle_between_segments(femur_pos, tibia_pos, tarsus_pos,rot_axis)
+                    th_tibia = angle_between_segments(femur_pos, tibia_pos, tarsus_pos,flex_axis)
                     #print(th_tibia*180/np.pi)
-                    if th_tibia < 0:
-                        th_tibia = th_tibia-factor_zero                   
+                    #if th_tibia < 0:
+                    #    th_tibia = th_tibia-factor_zero                   
                     #print(th_tibia*180/np.pi)
+                    if (('RF' in leg) or ('LF' in leg)) and th_tibia>0:
+                        th_tibia = -th_tibia
                     angles_dict[leg]['th_ti'].append(th_tibia)
                     if get_roll_tr:
                         roll_tr = calculate_roll_trochanter(leg,angles_dict,joints,i-begin)
-                        if ('LF' in leg and roll_tr>0) or ('RF' in leg and roll_tr<0):
+                        #if roll_tr > 0:
+                        #if ('RF' in leg and roll_tr>0) or ('LF' in leg and roll_tr<0):
+                        #    roll_tr = factor_zero+roll_tr
+                        if (('RF' in leg) or ('LF' in leg)) and roll_tr<0:
                             roll_tr = -roll_tr
+                            #print(leg,roll_tr)
                         angles_dict[leg]['roll_tr'].append(roll_tr)
             if 'Tarsus' in joint:
                 angles_dict[leg]['th_ta']=[]
@@ -187,13 +225,15 @@ def calculate_angles(aligned_dict,begin,end,get_roll_tr):
                     tibia_pos = joints['Tibia']['raw_pos_aligned'][i]
                     tarsus_pos = data['raw_pos_aligned'][i]
                     claw_pos = joints['Claw']['raw_pos_aligned'][i]
-                    th_tarsus = angle_between_segments(tibia_pos, tarsus_pos, claw_pos,rot_axis)
+                    th_tarsus = angle_between_segments(tibia_pos, tarsus_pos, claw_pos,flex_axis)
                     #print(th_tarsus*180/np.pi)
-                    if th_tarsus > 0:
-                        th_tarsus = factor_zero + th_tarsus
-                    else:
-                        th_tarsus = factor_zero - th_tarsus
+                    #if th_tarsus > 0:
+                    #    th_tarsus = factor_zero + th_tarsus
+                    #else:
+                    #    th_tarsus = factor_zero - th_tarsus
                     #print(th_tarsus*180/np.pi)
+                    if (('RF' in leg) or ('LF' in leg)) and th_tarsus<0:
+                        th_tarsus = -th_tarsus
                     angles_dict[leg]['th_ta'].append(th_tarsus)
 
     return angles_dict
@@ -202,15 +242,63 @@ def calculate_angles(aligned_dict,begin,end,get_roll_tr):
 def calculate_forward_kinematics(leg_name, frame, leg_angles, data_dict, extraDOF={},ik_angles=False):
 
     if not ik_angles:    
-        if 'LF' in leg_name or 'RF' in leg_name:
-            if 'LF' in leg_name:
-                roll = leg_angles['roll'][frame]
-            if 'RF' in leg_name:
-                roll = leg_angles['roll'][frame]
-        elif 'LM' in leg_name or 'LH' in leg_name:
-            roll = - (np.pi/2 + leg_angles['roll'][frame])
-        elif 'RM' in leg_name or 'RH' in leg_name:
+        #if 'LF' in leg_name or 'RF' in leg_name:
+        #    if 'RF' in leg_name:
+        #        roll = leg_angles['roll'][frame]
+        #    if 'LF' in leg_name:
+        #        roll = leg_angles['roll'][frame]
+        #elif 'RM' in leg_name or 'RH' in leg_name:
+        #    roll = - (np.pi/2 + leg_angles['roll'][frame])
+        #elif 'LM' in leg_name or 'LH' in leg_name:
+        #    roll = np.pi/2 + leg_angles['roll'][frame]
+        
+        ##if 'RF' in leg_name or 'LF' in leg_name:
+        ##    roll = leg_angles['roll'][frame]
+        ##elif 'RM' in leg_name:
+        ##    roll = -np.pi/2 + leg_angles['roll'][frame]
+        ##elif 'RH' in leg_name:
+        ##    roll = -np.pi + leg_angles['roll'][frame]
+        ##elif 'LM' in leg_name:
+        ##    roll = np.pi/2 - leg_angles['roll'][frame]
+        ##elif 'LH' in leg_name:
+        ##    roll = np.pi - leg_angles['roll'][frame]
+
+        if 'RF' in leg_name:
+            roll = np.pi-leg_angles['roll'][frame]
+            th_fe = np.pi-leg_angles['th_fe'][frame]
+            th_ti = np.pi-leg_angles['th_ti'][frame]
+            th_ta = np.pi-leg_angles['th_ta'][frame]
+            roll_tr_fact = -1
+        elif 'RM' in leg_name:
             roll = np.pi/2 + leg_angles['roll'][frame]
+            th_fe = np.pi-leg_angles['th_fe'][frame]
+            th_ti = np.pi-leg_angles['th_ti'][frame]
+            th_ta = np.pi-leg_angles['th_ta'][frame]
+            roll_tr_fact = -1
+        elif 'RH' in leg_name:
+            roll = -leg_angles['roll'][frame]
+            th_fe = np.pi-leg_angles['th_fe'][frame]
+            th_ti = np.pi-leg_angles['th_ti'][frame]
+            th_ta = np.pi-leg_angles['th_ta'][frame]
+            roll_tr_fact = 1
+        elif 'LF' in leg_name:
+            roll = np.pi+leg_angles['roll'][frame]
+            th_fe = np.pi-leg_angles['th_fe'][frame]
+            th_ti = np.pi-leg_angles['th_ti'][frame]
+            th_ta = np.pi-leg_angles['th_ta'][frame]
+            roll_tr_fact = 1
+        elif 'LM' in leg_name:
+            roll = -np.pi/2 - leg_angles['roll'][frame]
+            th_fe = np.pi-leg_angles['th_fe'][frame]
+            th_ti = np.pi-leg_angles['th_ti'][frame]
+            th_ta = np.pi-leg_angles['th_ta'][frame]
+            roll_tr_fact = 1
+        elif 'LH' in leg_name:
+            roll = leg_angles['roll'][frame]
+            th_fe = np.pi-leg_angles['th_fe'][frame]
+            th_ti = np.pi-leg_angles['th_ti'][frame]
+            th_ta = np.pi-leg_angles['th_ta'][frame]
+            roll_tr_fact = -1
 
     else:
         roll = -leg_angles['roll'][frame]
@@ -232,7 +320,7 @@ def calculate_forward_kinematics(leg_name, frame, leg_angles, data_dict, extraDO
     if extraDOF:
         for key, val in extraDOF.items():
             if key == 'roll_tr':
-                roll_tr = val
+                roll_tr = val * roll_tr_fact
             if key == 'yaw_tr':
                 yaw_tr = val
             if key == 'roll_ti':
@@ -245,9 +333,9 @@ def calculate_forward_kinematics(leg_name, frame, leg_angles, data_dict, extraDO
                 yaw_ta = val           
     
     r1 = R.from_euler('zyx',[roll,leg_angles['pitch'][frame],leg_angles['yaw'][frame]])
-    r2 = R.from_euler('zyx',[roll_tr,leg_angles['th_fe'][frame],yaw_tr])
-    r3 = R.from_euler('zyx',[roll_ti,leg_angles['th_ti'][frame],yaw_ti])
-    r4 = R.from_euler('zyx',[roll_ta,leg_angles['th_ta'][frame],yaw_ta])
+    r2 = R.from_euler('zyx',[roll_tr,th_fe,yaw_tr])
+    r3 = R.from_euler('zyx',[roll_ti,th_ti,yaw_ti])
+    r4 = R.from_euler('zyx',[roll_ta,th_ta,yaw_ta])
 
     coxa_pos = data_dict[leg_name]['Coxa']['fixed_pos_aligned']    
     l_coxa = data_dict[leg_name]['Coxa']['mean_length']#np.linalg.norm(coxa_pos-real_pos_femur)#

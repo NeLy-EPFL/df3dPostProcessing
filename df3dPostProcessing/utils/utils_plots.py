@@ -44,7 +44,7 @@ def plot_angles(angles,key,degrees=True):
     
     plt.show()
 
-def plot_angles_torques_grf(leg_key, angles={}, sim_data='walking', exp_dir='experiment', plot_angles=True, plot_torques=True, plot_grf=True, plot_collisions=True, collisions_across=True, begin=0.0, end=0.0, save_imgs=False, dir_name='dataPlots',torqueScalingFactor=1, grfScalingFactor=1):    
+def plot_angles_torques_grf(leg_key, angles={}, sim_data='walking', exp_dir='experiment', plot_angles=True, plot_torques=True, plot_grf=True, plot_collisions=True, collisions_across=True, begin=0.0, end=0.0, save_imgs=False, dir_name='dataPlots',torqueScalingFactor=1, grfScalingFactor=1, tot_time=9.0,time_step=0.001):    
 
     data2plot={}
 
@@ -67,10 +67,11 @@ def plot_angles_torques_grf(leg_key, angles={}, sim_data='walking', exp_dir='exp
         collisions_data = sim_res_folder + '/selfCollisions_data_ball_' + sim_data + '.pkl'
 
     if end == 0:
-        end = 9.0
+        end = tot_time
 
-    start = int(begin*100)
-    stop = int(end*100)
+    steps = 1/time_step
+    start = int(begin*steps)
+    stop = int(end*steps)
 
     if plot_angles:
         angles_raw = angles[leg_key+'_leg']
@@ -228,7 +229,7 @@ def plot_angles_torques_grf(leg_key, angles={}, sim_data='walking', exp_dir='exp
     for i, (plot, data) in enumerate(data2plot.items()):
         if plot == 'angles':
             for name, angle_rad in data.items():
-                time = np.arange(0,len(angle_rad),1)/100
+                time = np.arange(0,len(angle_rad),1)/steps
                 angle = np.array(angle_rad)*180/np.pi
                 axs[i].plot(time[start:stop], angle[start:stop], label=name)
             axs[i].set_ylabel('Joint angle (deg)')
@@ -236,17 +237,17 @@ def plot_angles_torques_grf(leg_key, angles={}, sim_data='walking', exp_dir='exp
         if plot == 'torques':
             for joint, torque in data.items():
                 torque_adj = np.delete(torque,0)
-                time = np.arange(0,len(torque_adj),1)/100
+                time = np.arange(0,len(torque_adj),1)/steps
                 axs[i].plot(time[start:stop], torque_adj[start:stop]*torqueScalingFactor,label=joint)
             axs[i].set_ylabel('Joint torque ' + r'$(\mu Nmm)$')
 
         if plot == 'grf':
-            time = np.arange(0,len(leg_force),1)/100
+            time = np.arange(0,len(leg_force),1)/steps
             axs[i].plot(time[start:stop],leg_force[start:stop]*grfScalingFactor,color='black')
             axs[i].set_ylabel('Ball reaction force' + r'$(\mu N)$')
 
         if plot == 'collisions':
-            time = np.arange(0,len(leg_force),1)/100
+            time = np.arange(0,len(leg_force),1)/steps
             axs[i].plot(time[start:stop],np.array(leg_vs_leg[start:stop])*grfScalingFactor,color='black',label=['Leg vs leg force'])
             axs[i].plot(time[start:stop],np.array(leg_vs_ant[start:stop])*grfScalingFactor,color='dimgray',label=['Leg vs antenna force'])
             axs[i].set_ylabel('Contact forces (mN)')
@@ -874,7 +875,7 @@ def draw_grf_on_imgs(data_2d, experiment, sim_data='walking', side='L', begin=0,
     
     grf_data = sim_res_folder + '/grf_data_ball_' + sim_data + '.pkl'
 
-    colors = {'LF_leg':(0,0,204),'LM_leg':(51,51,255),'LH_leg':(102,102,255),'RF_leg':(153,76,0),'RM_leg':(255,128,0),'RH_leg':(255,178,102)}
+    colors = {'RF_leg':(0,0,204),'RM_leg':(51,51,255),'RH_leg':(102,102,255),'LF_leg':(153,76,0),'LM_leg':(255,128,0),'LH_leg':(255,178,102)}
 
     if end == 0:
         end = 9.0
@@ -979,7 +980,7 @@ def draw_legs_from_3d(data,exp_dir,data_2d,side='L',dir_name='traking_2d_from_3d
     elif side == 'F':
         cam_id = 3
     
-    colors = {'LF_leg':(0,0,204),'LM_leg':(51,51,255),'LH_leg':(102,102,255),'RF_leg':(153,76,0),'RM_leg':(255,128,0),'RH_leg':(255,178,102)}
+    colors = {'RF_leg':(0,0,204),'RM_leg':(51,51,255),'RH_leg':(102,102,255),'LF_leg':(153,76,0),'LM_leg':(255,128,0),'LH_leg':(255,178,102)}
 
     if end == 0:
         try:
@@ -1056,7 +1057,7 @@ def draw_legs_from_2d(cams_info,data_2d,exp_dir,side='L',begin=0,end=0,saveimgs 
         #    front_view['F_points2d'] = data_2d[key-1]
         #    front_view['cam_id'] = key-1
     
-    colors = {'LF_leg':(0,0,204),'LM_leg':(51,51,255),'LH_leg':(102,102,255),'RF_leg':(153,76,0),'RM_leg':(255,128,0),'RH_leg':(255,178,102)}
+    colors = {'RF_leg':(0,0,204),'RM_leg':(51,51,255),'RH_leg':(102,102,255),'LF_leg':(153,76,0),'LM_leg':(255,128,0),'LH_leg':(255,178,102)}
     
     if end == 0:
         end = len(data['LF_leg']['Coxa'])
@@ -1146,7 +1147,7 @@ def plot_SG_angles(angles,degrees=True):
     plt.show()
 
 def plot_3d_and_2d(data, plane='xz', begin=0,end=0,metric = 'raw_pos_aligned', savePlot = False, pause=False):
-    colors = {'LF':(1,0,0),'LM':(0,1,0),'LH':(0,0,1),'RF':(1,1,0),'RM':(1,0,1),'RH':(0,1,1)}
+    colors = {'RF':(1,0,0),'RM':(0,1,0),'RH':(0,0,1),'LF':(1,1,0),'LM':(1,0,1),'LH':(0,1,1)}
     if end == 0:
         end = len(data['LF_leg']['Coxa'][metric])
     fig_3d = plt.figure()
@@ -1336,7 +1337,7 @@ def plot_legs_from_angles(angles,data_dict,exp_dir,begin=0,end=0,plane='xz',save
     #colors_real= {'LF_leg':(1,0,0),'LM_leg':(0,1,0),'LH_leg':(0,0,1),'RF_leg':(1,1,0),'RM_leg':(1,0,1),'RH_leg':(0,1,1)}
     #colors = {'LF_leg':(1,0.5,0.5),'LM_leg':(0.5,1,0.5),'LH_leg':(0.5,0.5,1),'RF_leg':(1,1,0.5),'RM_leg':(1,0.5,1),'RH_leg':(0.5,1,1)}
 
-    colors = {'LF_leg':(204/255,0,0),'LM_leg':(1,51/255,51/255),'LH_leg':(1,102/255,102/255),'RF_leg':(0,76/255,153/255),'RM_leg':(0,0.5,1),'RH_leg':(102/255,178/255,1)}
+    colors = {'RF_leg':(204/255,0,0),'RM_leg':(1,51/255,51/255),'RH_leg':(1,102/255,102/255),'LF_leg':(0,76/255,153/255),'LM_leg':(0,0.5,1),'LH_leg':(102/255,178/255,1)}
 
     
     legend_3D = [(Line2D([0], [0], marker='o', ms=6, ls='-', lw=2, color=colors['LF_leg']),
@@ -1358,9 +1359,9 @@ def plot_legs_from_angles(angles,data_dict,exp_dir,begin=0,end=0,plane='xz',save
         view_2d = plt.figure()
     
     if end == 0:
-        end = len(angles['LF_leg']['yaw'])
+        end = len(angles['RF_leg']['yaw'])
 
-    order = ['RH_leg','RM_leg','RF_leg','LH_leg','LM_leg','LF_leg']
+    order = ['LH_leg','LM_leg','LF_leg','RH_leg','RM_leg','RF_leg']
     angles_rev = {leg:angles[leg] for leg in order}
 
     lim_x = (-2.5,1.5)

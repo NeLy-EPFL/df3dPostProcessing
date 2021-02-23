@@ -1,29 +1,11 @@
 import numpy as np
 import os
+import pickle
 from .utils.utils_alignment import align_3d
 from .utils.utils_angles import calculate_angles
 #from .utils.utils_plots import *
 
-df3d_skeleton = ['LFCoxa',
-                 'LFFemur',
-                 'LFTibia',
-                 'LFTarsus',
-                 'LFClaw',
-                 'LMCoxa',
-                 'LMFemur',
-                 'LMTibia',
-                 'LMTarsus',
-                 'LMClaw',
-                 'LHCoxa',
-                 'LHFemur',
-                 'LHTibia',
-                 'LHTarsus',
-                 'LHClaw',
-                 'LAntenna',
-                 'LStripe1',
-                 'LStripe2',
-                 'LStripe3',
-                 'RFCoxa',
+df3d_skeleton = ['RFCoxa',
                  'RFFemur',
                  'RFTibia',
                  'RFTarsus',
@@ -41,7 +23,26 @@ df3d_skeleton = ['LFCoxa',
                  'RAntenna',
                  'RStripe1',
                  'RStripe2',
-                 'RStripe3']
+                 'RStripe3',
+                 'LFCoxa',
+                 'LFFemur',
+                 'LFTibia',
+                 'LFTarsus',
+                 'LFClaw',
+                 'LMCoxa',
+                 'LMFemur',
+                 'LMTibia',
+                 'LMTarsus',
+                 'LMClaw',
+                 'LHCoxa',
+                 'LHFemur',
+                 'LHTibia',
+                 'LHTarsus',
+                 'LHClaw',
+                 'LAntenna',
+                 'LStripe1',
+                 'LStripe2',
+                 'LStripe3']
 
 prism_skeleton_AG = ['LFCoxa',
                   'LFFemur',
@@ -74,22 +75,7 @@ prism_skeleton_AG = ['LFCoxa',
                   'RHTarsus',
                   'RHClaw']
 
-prism_skeleton = ['LFCoxa',
-                  'LFFemur',
-                  'LFTibia',
-                  'LFTarsus',
-                  'LFClaw',
-                  'LMCoxa',
-                  'LMFemur',
-                  'LMTibia',
-                  'LMTarsus',
-                  'LMClaw',
-                  'LHCoxa',
-                  'LHFemur',
-                  'LHTibia',
-                  'LHTarsus',
-                  'LHClaw',
-                  'RFCoxa',
+prism_skeleton = ['RFCoxa',
                   'RFFemur',
                   'RFTibia',
                   'RFTarsus',
@@ -104,14 +90,29 @@ prism_skeleton = ['LFCoxa',
                   'RHTibia',
                   'RHTarsus',
                   'RHClaw',
-                  'LAntenna',
+                  'LFCoxa',
+                  'LFFemur',
+                  'LFTibia',
+                  'LFTarsus',
+                  'LFClaw',
+                  'LMCoxa',
+                  'LMFemur',
+                  'LMTibia',
+                  'LMTarsus',
+                  'LMClaw',
+                  'LHCoxa',
+                  'LHFemur',
+                  'LHTibia',
+                  'LHTarsus',
+                  'LHClaw',
                   'RAntenna',
-                  'LEye',
+                  'LAntenna',
                   'REye',
-                  'LHaltere',
+                  'LEye',
                   'RHaltere',
-                  'LWing',
+                  'LHaltere',
                   'RWing',
+                  'LWing',
                   'Proboscis',
                   'Neck',
                   'Genitalia',
@@ -122,36 +123,36 @@ prism_skeleton = ['LFCoxa',
                   'A5',
                   'A6']
 
-template_neuromechfly = {'LFCoxa':[0.345, -0.216, 0.327],
-                         'LFFemur':[0.345, -0.216, -0.025],
-                         'LFTibia':[0.345, -0.216, -0.731],
-                         'LFTarsus':[0.345, -0.216, -1.249],
-                         'LFClaw':[0.345, -0.216, -1.912],
-                         'RFCoxa':[0.345, 0.216, 0.327],
-                         'RFFemur':[0.345, 0.216, -0.025],
-                         'RFTibia':[0.345, 0.216, -0.731],
-                         'RFTarsus':[0.345, 0.216, -1.249],
-                         'RFClaw':[0.345, 0.216, -1.912],
-                         'LMCoxa':[0, -0.125, 0],
-                         'LMFemur':[0, -0.125, -0.182],
-                         'LMTibia':[0, -0.125, -0.965],
-                         'LMTarsus':[0, -0.125, -1.633],
-                         'LMClaw':[0, -0.125, -2.328],
-                         'RMCoxa':[0, 0.125, 0],
-                         'RMFemur':[0, 0.125, -0.182],
-                         'RMTibia':[0, 0.125, -0.965],
-                         'RMTarsus':[0, 0.125, -1.633],
-                         'RMClaw':[0, 0.125, -2.328],                      
-                         'LHCoxa':[-0.215, -0.087, -0.073],
-                         'LHFemur':[-0.215, -0.087, -0.272],
-                         'LHTibia':[-0.215, -0.087, -1.108],
-                         'LHTarsus':[-0.215, -0.087, -1.793],
-                         'LHClaw':[-0.215, -0.087, -2.588],                      
-                         'RHCoxa':[-0.215, 0.087, -0.073],
-                         'RHFemur':[-0.215, 0.087, -0.272],
-                         'RHTibia':[-0.215, 0.087, -1.108],
-                         'RHTarsus':[-0.215, 0.087, -1.793],
-                         'RHClaw':[-0.215, 0.087, -2.588]}
+template_neuromechfly = {'RFCoxa':[0.345, -0.216, 0.327],
+                         'RFFemur':[0.345, -0.216, -0.025],
+                         'RFTibia':[0.345, -0.216, -0.731],
+                         'RFTarsus':[0.345, -0.216, -1.249],
+                         'RFClaw':[0.345, -0.216, -1.912],
+                         'LFCoxa':[0.345, 0.216, 0.327],
+                         'LFFemur':[0.345, 0.216, -0.025],
+                         'LFTibia':[0.345, 0.216, -0.731],
+                         'LFTarsus':[0.345, 0.216, -1.249],
+                         'LFClaw':[0.345, 0.216, -1.912],
+                         'RMCoxa':[0, -0.125, 0],
+                         'RMFemur':[0, -0.125, -0.182],
+                         'RMTibia':[0, -0.125, -0.965],
+                         'RMTarsus':[0, -0.125, -1.633],
+                         'RMClaw':[0, -0.125, -2.328],
+                         'LMCoxa':[0, 0.125, 0],
+                         'LMFemur':[0, 0.125, -0.182],
+                         'LMTibia':[0, 0.125, -0.965],
+                         'LMTarsus':[0, 0.125, -1.633],
+                         'LMClaw':[0, 0.125, -2.328],                      
+                         'RHCoxa':[-0.215, -0.087, -0.073],
+                         'RHFemur':[-0.215, -0.087, -0.272],
+                         'RHTibia':[-0.215, -0.087, -1.108],
+                         'RHTarsus':[-0.215, -0.087, -1.793],
+                         'RHClaw':[-0.215, -0.087, -2.588],                      
+                         'LHCoxa':[-0.215, 0.087, -0.073],
+                         'LHFemur':[-0.215, 0.087, -0.272],
+                         'LHTibia':[-0.215, 0.087, -1.108],
+                         'LHTarsus':[-0.215, 0.087, -1.793],
+                         'LHClaw':[-0.215, 0.087, -2.588]}
 
 class df3dPostProcess:
     def __init__(self, exp_dir, multiple = False, file_name = '', skeleton='df3d', calculate_3d=False):
@@ -166,8 +167,8 @@ class df3dPostProcess:
         self.data_2d_dict = load_data_to_dict(self.raw_data_2d, skeleton)
         self.aligned_model = {}
 
-    def align_to_template(self,scale=True):
-        self.aligned_model = align_3d(self.data_3d_dict,self.skeleton,self.template,scale)
+    def align_to_template(self,scale=True,interpolate=False,smoothing=True,original_time_step= 0.01,new_time_step=0.001,window_length=29):
+        self.aligned_model = align_3d(self.data_3d_dict,self.skeleton,self.template,scale,interpolate, smoothing, original_time_step, new_time_step, window_length)
 
         return self.aligned_model
 
@@ -177,8 +178,12 @@ class df3dPostProcess:
     #        self.aligned_model = rescale_using_2d_data(self.aligned_model, self.data_2d_dict, self.raw_data_cams, self.exp_dir)       
     #    return self.aligned_model
 
-    def calculate_leg_angles(self, begin = 0, end = 0, get_roll_tr = True):
+    def calculate_leg_angles(self, begin = 0, end = 0, get_roll_tr = True, save_angles=False):
         leg_angles = calculate_angles(self.aligned_model, begin, end, get_roll_tr)
+        if save_angles:
+            path = os.path.join(os.path.dirname(self.exp_dir),'joint_angles.pkl')
+            with open(path, 'wb') as f:
+                pickle.dump(leg_angles, f)
         return leg_angles
 
     
@@ -192,13 +197,15 @@ class df3dPostProcess:
             data = np.load(exp,allow_pickle=True)
             if skeleton == 'prism':
                 data={'points3d':data}
+
+            if calculate_3d:
+                self.raw_data_3d = triangulate_2d(data, exp)
+                
             for key, vals in data.items():
                 if not isinstance(key,str):
                     self.raw_data_cams[key] = vals
                 elif key == 'points3d':
-                    if calculate_3d:
-                        self.raw_data_3d = triangulate_2d(data, exp)
-                    else:
+                    if not calculate_3d:
                         self.raw_data_3d = vals
                 elif key == 'points2d':
                     self.raw_data_2d = vals
@@ -257,17 +264,6 @@ def load_data_to_dict(data, skeleton):
                     body_part = 'Abdomen'
                 landmark = name
                 
-            '''    
-            if 'Antenna' in name: 
-                body_part = 'Antennae'
-                landmark = name
-            elif 'Stripe' in name:
-                body_part = 'Stripes'
-                landmark = name
-            else:
-                body_part = name[0:2] + '_leg'
-                landmark = name[2:]
-            '''
             if body_part not in exp_dict.keys():
                 exp_dict[body_part] = {}
 

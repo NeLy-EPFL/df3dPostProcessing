@@ -3,13 +3,48 @@ import cv2 as cv
 import os
 from mpl_toolkits.mplot3d import Axes3D
 from scipy.spatial.transform import Rotation as R
+from scipy.interpolate import pchip_interpolate
 
-def align_3d(pos_3d_dict,skeleton,template,scale):
+def align_3d(pos_3d_dict,skeleton,template,scale,interpolate,smoothing,ots,nts,window_length):
     if skeleton == 'prism':
         pos_3d_dict = get_flycentric(pos_3d_dict)
     fix = get_fix_coxae_pos(pos_3d_dict)
     align = align_3d_to_template(fix,skeleton,template,scale)
+
+    if interpolate:
+        align = interpolate_3d_data(align,smoothing,ots,nts,window_length)
+    
     return align
+
+def interpolate_3d_data(data,smoothing,ots,nts,window_length):
+        """ This function interpolates the signal based on PCHIP and smoothes it using Hamming window. """
+
+        interp_dict={}
+
+        for leg, joints in data.items():
+            interp_dict[leg]={}
+            for joint, data in joints.items():
+                interp_dict[leg][joint]={}
+                for key, pos in data.items():
+                    if key == 'raw_pos_aligned':
+                        pos_t = pos.transpose()
+                        interp_pos = []
+                        tot_time = len(pos)*ots
+                        original_x = np.arange(0,tot_time,ots)
+                        new_x = np.arange(0,tot_time,nts)
+                        
+                        for i in range(len(pos_t)):
+                            interpolated_signal = pchip_interpolate(original_x,pos_t[i],new_x)
+                            if smoothing:
+                                hamming_window = np.hamming(window_length)
+                                interpolated_signal = np.convolve(hamming_window/hamming_window.sum(), interpolated_signal, mode='valid')
+                            
+                            interp_pos.append(interpolated_signal)
+                        interp_dict[leg][joint][key] = np.array(interp_pos).transpose()
+                    else:
+                        interp_dict[leg][joint][key] = pos
+
+        return interp_dict
 
 def get_flycentric(data, pixel_size=[5.86e-3,5.86e-3,5.86e-3]):
     trans_dict = {}
@@ -153,7 +188,7 @@ def align_3d_to_template(fixed_dict,skeleton,template,scale):
     align_dict = calculate_fix_lengths(align_dict, next_joints)
     return align_dict
 
-def calculate_fix_lengths(data, next_joints, metric = 'raw_pos_aligned', data_used=0.7):
+def calculate_fix_lengths(data, next_joints, metric = 'raw_pos_aligned', data_used=0.8):
     for name, leg in data.items():
         lengths = []
         for segment, body_part in leg.items():
@@ -175,9 +210,9 @@ def calculate_fix_lengths(data, next_joints, metric = 'raw_pos_aligned', data_us
                     a = point
                     b = data[name][next_joints[segment]][metric][i] 
                     dist.append(np.linalg.norm(a-b))
-                        
-                body_part['mean_length']=np.mean(dist[ind:-ind])
-                lengths.append(np.mean(dist))
+                sort_dist = np.sort(dist)        
+                body_part['mean_length']=np.mean(sort_dist[ind:-ind])
+                lengths.append(np.mean(sort_dist[ind:-ind]))
             else:
                 body_part['total_length']=np.sum(lengths)
     return data
