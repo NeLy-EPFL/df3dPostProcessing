@@ -1404,7 +1404,7 @@ def plot_legs_from_angles(angles,data_dict,exp_dir,begin=0,end=0,plane='xz',save
             if ik_angles:
                 pos_3d = fk_from_ik(leg, name, data_dict, frame).transpose()
             else:
-                pos_3d = utils_angles.calculate_forward_kinematics(name, frame, leg, data_dict, extraDOF=extraDOF_vals,ik_angles=ik_angles).transpose()
+                pos_3d = utils_angles.calculate_forward_kinematics(name, frame, leg, data_dict, extraDOF=extraDOF_vals).transpose()
 
                       
             x = pos_3d[0]
@@ -1633,15 +1633,33 @@ def calculate_inverse_kinematics(data_dict, init_angles={},roll_tr=False):
         else:
             init_pos = [0]
             for key in angles_ik[name].keys():
+                #if 'roll' in key and '_tr' not in key:
+                #    if 'LM' in name or 'LH' in name:
+                #        init_pos.append(-(np.pi/2 + init_angles[name][key][0]))
+                #    elif 'RM' in name or 'RH' in name:
+                #        init_pos.append((np.pi/2 + init_angles[name][key][0]))
+                #    else:
+                #        init_pos.append(init_angles[name][key][0])
+                #else:
+                #    init_pos.append(init_angles[name][key][0])
                 if 'roll' in key and '_tr' not in key:
-                    if 'LM' in name or 'LH' in name:
-                        init_pos.append(-(np.pi/2 + init_angles[name][key][0]))
-                    elif 'RM' in name or 'RH' in name:
-                        init_pos.append((np.pi/2 + init_angles[name][key][0]))
-                    else:
+                    if 'RF' in name:
+                        init_pos.append(np.pi-init_angles[name][key][0])
+                    elif 'RM' in name:
+                        init_pos.append(np.pi/2+init_angles[name][key][0])
+                    elif 'RH' in name:
+                        init_pos.append(-init_angles[name][key][0])
+                    elif 'LF' in name:
+                        init_pos.append(np.pi+init_angles[name][key][0])
+                    elif 'LM' in name:
+                        init_pos.append(-np.pi/2-init_angles[name][key][0])
+                    elif 'LH' in name:
                         init_pos.append(init_angles[name][key][0])
+                elif 'th_fe' in key or 'th_ti' in key or 'th_ta' in key:
+                    init_pos.append(np.pi-init_angles[name][key][0])
                 else:
                     init_pos.append(init_angles[name][key][0])
+                    
             init_pos.append(0)
 
         for i, pos in enumerate(leg['Claw']['raw_pos_aligned']):

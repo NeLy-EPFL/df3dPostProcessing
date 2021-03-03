@@ -123,36 +123,79 @@ prism_skeleton = ['RFCoxa',
                   'A5',
                   'A6']
 
-template_neuromechfly = {'RFCoxa':[0.345, -0.216, 0.327],
-                         'RFFemur':[0.345, -0.216, -0.025],
-                         'RFTibia':[0.345, -0.216, -0.731],
-                         'RFTarsus':[0.345, -0.216, -1.249],
-                         'RFClaw':[0.345, -0.216, -1.912],
-                         'LFCoxa':[0.345, 0.216, 0.327],
-                         'LFFemur':[0.345, 0.216, -0.025],
-                         'LFTibia':[0.345, 0.216, -0.731],
-                         'LFTarsus':[0.345, 0.216, -1.249],
-                         'LFClaw':[0.345, 0.216, -1.912],
-                         'RMCoxa':[0, -0.125, 0],
-                         'RMFemur':[0, -0.125, -0.182],
-                         'RMTibia':[0, -0.125, -0.965],
-                         'RMTarsus':[0, -0.125, -1.633],
-                         'RMClaw':[0, -0.125, -2.328],
-                         'LMCoxa':[0, 0.125, 0],
-                         'LMFemur':[0, 0.125, -0.182],
-                         'LMTibia':[0, 0.125, -0.965],
-                         'LMTarsus':[0, 0.125, -1.633],
-                         'LMClaw':[0, 0.125, -2.328],                      
-                         'RHCoxa':[-0.215, -0.087, -0.073],
-                         'RHFemur':[-0.215, -0.087, -0.272],
-                         'RHTibia':[-0.215, -0.087, -1.108],
-                         'RHTarsus':[-0.215, -0.087, -1.793],
-                         'RHClaw':[-0.215, -0.087, -2.588],                      
-                         'LHCoxa':[-0.215, 0.087, -0.073],
-                         'LHFemur':[-0.215, 0.087, -0.272],
-                         'LHTibia':[-0.215, 0.087, -1.108],
-                         'LHTarsus':[-0.215, 0.087, -1.793],
-                         'LHClaw':[-0.215, 0.087, -2.588]}
+template_nmf = {'RFCoxa':[0.345, -0.216, 0.327],
+                'RFFemur':[0.345, -0.216, -0.025],
+                'RFTibia':[0.345, -0.216, -0.731],
+                'RFTarsus':[0.345, -0.216, -1.249],
+                'RFClaw':[0.345, -0.216, -1.912],
+                'LFCoxa':[0.345, 0.216, 0.327],
+                'LFFemur':[0.345, 0.216, -0.025],
+                'LFTibia':[0.345, 0.216, -0.731],
+                'LFTarsus':[0.345, 0.216, -1.249],
+                'LFClaw':[0.345, 0.216, -1.912],
+                'RMCoxa':[0, -0.125, 0],
+                'RMFemur':[0, -0.125, -0.182],
+                'RMTibia':[0, -0.125, -0.965],
+                'RMTarsus':[0, -0.125, -1.633],
+                'RMClaw':[0, -0.125, -2.328],
+                'LMCoxa':[0, 0.125, 0],
+                'LMFemur':[0, 0.125, -0.182],
+                'LMTibia':[0, 0.125, -0.965],
+                'LMTarsus':[0, 0.125, -1.633],
+                'LMClaw':[0, 0.125, -2.328],                      
+                'RHCoxa':[-0.215, -0.087, -0.073],
+                'RHFemur':[-0.215, -0.087, -0.272],
+                'RHTibia':[-0.215, -0.087, -1.108],
+                'RHTarsus':[-0.215, -0.087, -1.793],
+                'RHClaw':[-0.215, -0.087, -2.588],                      
+                'LHCoxa':[-0.215, 0.087, -0.073],
+                'LHFemur':[-0.215, 0.087, -0.272],
+                'LHTibia':[-0.215, 0.087, -1.108],
+                'LHTarsus':[-0.215, 0.087, -1.793],
+                'LHClaw':[-0.215, 0.087, -2.588]}
+
+zero_pose_nmf = {'RF_leg':{'yaw':0,
+                           'pitch':0,
+                           'roll':0,
+                           'roll_tr':0,
+                           'th_fe':-np.pi,
+                           'th_ti':np.pi,
+                           'th_ta':-np.pi},
+                 'RM_leg':{'yaw':0,
+                           'pitch':0,
+                           'roll':-np.pi/2,
+                           'roll_tr':0,
+                           'th_fe':-np.pi,
+                           'th_ti':np.pi,
+                           'th_ta':-np.pi},
+                 'RH_leg':{'yaw':0,
+                           'pitch':0,
+                           'roll':-np.pi,
+                           'roll_tr':0,
+                           'th_fe':-np.pi,
+                           'th_ti':np.pi,
+                           'th_ta':-np.pi},
+                 'LF_leg':{'yaw':0,
+                           'pitch':0,
+                           'roll':0,
+                           'roll_tr':0,
+                           'th_fe':-np.pi,
+                           'th_ti':np.pi,
+                           'th_ta':-np.pi},
+                 'LM_leg':{'yaw':0,
+                           'pitch':0,
+                           'roll':np.pi/2,
+                           'roll_tr':0,
+                           'th_fe':-np.pi,
+                           'th_ti':np.pi,
+                           'th_ta':-np.pi},
+                 'LH_leg':{'yaw':0,
+                           'pitch':0,
+                           'roll':np.pi,
+                           'roll_tr':0,
+                           'th_fe':-np.pi,
+                           'th_ti':np.pi,
+                           'th_ta':-np.pi}}
 
 class df3dPostProcess:
     def __init__(self, exp_dir, multiple = False, file_name = '', skeleton='df3d', calculate_3d=False):
@@ -160,7 +203,8 @@ class df3dPostProcess:
         self.raw_data_3d = np.array([])
         self.raw_data_2d = np.array([])
         self.skeleton = skeleton
-        self.template = template_neuromechfly
+        self.template = template_nmf
+        self.zero_pose = zero_pose_nmf
         self.raw_data_cams = {}
         self.load_data(exp_dir, calculate_3d, skeleton, multiple, file_name)
         self.data_3d_dict = load_data_to_dict(self.raw_data_3d, skeleton)
@@ -172,16 +216,19 @@ class df3dPostProcess:
 
         return self.aligned_model
 
-    #def align_3d_data(self, rescale = True):
-    #    self.aligned_model = align_data(self.data_3d_dict,self.skeleton)
-    #    if rescale:
-    #        self.aligned_model = rescale_using_2d_data(self.aligned_model, self.data_2d_dict, self.raw_data_cams, self.exp_dir)       
-    #    return self.aligned_model
+    def calculate_leg_angles(self, begin = 0, end = 0, get_roll_tr = True, save_angles=False, use_zero_pose=True, zero_pose=None):
+        if not zero_pose:
+            zero_pose = self.zero_pose
+                
+        leg_angles = calculate_angles(self.aligned_model, begin, end, get_roll_tr, zero_pose)
 
-    def calculate_leg_angles(self, begin = 0, end = 0, get_roll_tr = True, save_angles=False):
-        leg_angles = calculate_angles(self.aligned_model, begin, end, get_roll_tr)
+        if use_zero_pose:
+            for leg, angles in leg_angles.items():
+                for angle, vals in angles.items():
+                    leg_angles[leg][angle] = list(np.array(vals) + zero_pose[leg][angle])
+                
         if save_angles:
-            path = os.path.join(os.path.dirname(self.exp_dir),'joint_angles.pkl')
+            path = self.exp_dir.replace('pose_result','joint_angles')
             with open(path, 'wb') as f:
                 pickle.dump(leg_angles, f)
         return leg_angles
