@@ -522,6 +522,34 @@ def default_order_of_axis(exp_dict):
     right_side_remaining_axis_0 = np.mean(coxa_points[(3, 4, 5), :, remaining_axes[0]], axis=1)
     left_side_remaining_axis_1 = np.mean(coxa_points[(0, 1, 2), :, remaining_axes[1]], axis=1)
     right_side_remaining_axis_1 = np.mean(coxa_points[(3, 4, 5), :, remaining_axes[1]], axis=1)
+    #print(np.all(left_side_remaining_axis_0 > right_side_remaining_axis_0))
+    #print(np.all(left_side_remaining_axis_1 > right_side_remaining_axis_1))
+    #print()
+    #print(np.all(left_side_remaining_axis_0 < right_side_remaining_axis_0))
+    #print(np.all(left_side_remaining_axis_1 < right_side_remaining_axis_1))
+    #print()
+    #print(np.all(left_side_remaining_axis_0 > right_side_remaining_axis_0))
+    #print(np.all(left_side_remaining_axis_1 < right_side_remaining_axis_1))
+    #print()
+    #print(np.all(left_side_remaining_axis_0 < right_side_remaining_axis_0))
+    #print(np.all(left_side_remaining_axis_1 > right_side_remaining_axis_1))
+    #print("sub dev")
+    #print(np.median(np.diff(left_side_remaining_axis_0)))
+    #print(np.all(np.diff(left_side_remaining_axis_0) < 0))
+    #print(np.all(np.diff(left_side_remaining_axis_0) > 0))
+    #print()
+    #print(np.median(np.diff(left_side_remaining_axis_1)))
+    #print(np.all(np.diff(left_side_remaining_axis_1) < 0))
+    #print(np.all(np.diff(left_side_remaining_axis_1) > 0))
+    #print()
+    #print(np.median(np.diff(right_side_remaining_axis_0)))
+    #print(np.all(np.diff(right_side_remaining_axis_0) < 0))
+    #print(np.all(np.diff(right_side_remaining_axis_0) > 0))
+    #print()
+    #print(np.median(np.diff(right_side_remaining_axis_1)))
+    #print(np.all(np.diff(right_side_remaining_axis_1) < 0))
+    #print(np.all(np.diff(right_side_remaining_axis_1) > 0))
+    #exit()
 
     if (
         np.all(left_side_remaining_axis_0 > right_side_remaining_axis_0) and 
@@ -529,26 +557,26 @@ def default_order_of_axis(exp_dict):
        ):
         
         if (
-            np.all(np.diff(left_side_remaining_axis_0) < 0) and 
-            np.all(np.diff(left_side_remaining_axis_1) > 0) and 
-            np.all(np.diff(right_side_remaining_axis_0) < 0) and 
-            np.all(np.diff(right_side_remaining_axis_1) > 0)
+            np.median(np.diff(left_side_remaining_axis_0) < 0) and 
+            np.median(np.diff(left_side_remaining_axis_1) > 0) and 
+            np.median(np.diff(right_side_remaining_axis_0) < 0) and 
+            np.median(np.diff(right_side_remaining_axis_1) > 0)
            ):
             first_axis = remaining_axes[0]
             third_axis = remaining_axes[1]
         elif (
-            np.all(np.diff(left_side_remaining_axis_0) > 0) and 
-            np.all(np.diff(left_side_remaining_axis_1) < 0) and 
-            np.all(np.diff(right_side_remaining_axis_0) > 0) and 
-            np.all(np.diff(right_side_remaining_axis_1) < 0)
+            np.median(np.diff(left_side_remaining_axis_0) > 0) and 
+            np.median(np.diff(left_side_remaining_axis_1) < 0) and 
+            np.median(np.diff(right_side_remaining_axis_0) > 0) and 
+            np.median(np.diff(right_side_remaining_axis_1) < 0)
            ):
             first_axis = remaining_axes[1]
             third_axis = remaining_axes[0]
         elif (
-              np.all(np.diff(left_side_remaining_axis_0) < 0) and
-              np.all(np.diff(left_side_remaining_axis_1) < 0) and 
-              np.all(np.diff(right_side_remaining_axis_0) < 0) and 
-              np.all(np.diff(right_side_remaining_axis_1) < 0)
+              np.median(np.diff(left_side_remaining_axis_0) < 0) and
+              np.median(np.diff(left_side_remaining_axis_1) < 0) and 
+              np.median(np.diff(right_side_remaining_axis_0) < 0) and 
+              np.median(np.diff(right_side_remaining_axis_1) < 0)
              ): 
             first_axis = remaining_axes[1]
             third_axis = remaining_axes[0]
@@ -559,10 +587,10 @@ def default_order_of_axis(exp_dict):
           np.all(left_side_remaining_axis_1 < right_side_remaining_axis_1)
          ):
         if (
-            np.all(np.diff(left_side_remaining_axis_0) < 0) and 
-            np.all(np.diff(left_side_remaining_axis_1) > 0) and 
-            np.all(np.diff(right_side_remaining_axis_0) < 0) and 
-            np.all(np.diff(right_side_remaining_axis_1) > 0)
+            np.median(np.diff(left_side_remaining_axis_0) < 0) and 
+            np.median(np.diff(left_side_remaining_axis_1) > 0) and 
+            np.median(np.diff(right_side_remaining_axis_0) < 0) and 
+            np.median(np.diff(right_side_remaining_axis_1) > 0)
            ):
             # fixed for [[ 0. -1.  0.], [ 0.  0. -1.], [-1.  0.  0.]]
             first_axis = remaining_axes[1]
@@ -570,10 +598,10 @@ def default_order_of_axis(exp_dict):
             mirror_factors[0] = -1
             mirror_factors[2] = -1
         elif (
-            np.all(np.diff(left_side_remaining_axis_0) > 0) and 
-            np.all(np.diff(left_side_remaining_axis_1) < 0) and 
-            np.all(np.diff(right_side_remaining_axis_0) > 0) and 
-            np.all(np.diff(right_side_remaining_axis_1) < 0)
+            np.median(np.diff(left_side_remaining_axis_0) > 0) and 
+            np.median(np.diff(left_side_remaining_axis_1) < 0) and 
+            np.median(np.diff(right_side_remaining_axis_0) > 0) and 
+            np.median(np.diff(right_side_remaining_axis_1) < 0)
            ):
             # fixed for [[-1.  0.  0.], [ 0. -1.  0.], [ 0.  0. -1.]]
             first_axis = remaining_axes[0]
@@ -581,10 +609,10 @@ def default_order_of_axis(exp_dict):
             mirror_factors[0] = -1
             mirror_factors[2] = -1
         elif (
-              np.all(np.diff(left_side_remaining_axis_0) < 0) and
-              np.all(np.diff(left_side_remaining_axis_1) < 0) and 
-              np.all(np.diff(right_side_remaining_axis_0) < 0) and 
-              np.all(np.diff(right_side_remaining_axis_1) < 0)
+              np.median(np.diff(left_side_remaining_axis_0) < 0) and
+              np.median(np.diff(left_side_remaining_axis_1) < 0) and 
+              np.median(np.diff(right_side_remaining_axis_0) < 0) and 
+              np.median(np.diff(right_side_remaining_axis_1) < 0)
              ): 
             first_axis = remaining_axes[1]
             third_axis = remaining_axes[0]
@@ -595,36 +623,36 @@ def default_order_of_axis(exp_dict):
           np.all(left_side_remaining_axis_1 > right_side_remaining_axis_1)
          ):
         if (
-            np.all(np.diff(left_side_remaining_axis_0) < 0) and 
-            np.all(np.diff(left_side_remaining_axis_1) > 0) and 
-            np.all(np.diff(right_side_remaining_axis_0) < 0) and 
-            np.all(np.diff(right_side_remaining_axis_1) > 0)
+            np.median(np.diff(left_side_remaining_axis_0) < 0) and 
+            np.median(np.diff(left_side_remaining_axis_1) > 0) and 
+            np.median(np.diff(right_side_remaining_axis_0) < 0) and 
+            np.median(np.diff(right_side_remaining_axis_1) > 0)
            ):
             first_axis = remaining_axes[0]
             third_axis = remaining_axes[1]
         elif (
-            np.all(np.diff(left_side_remaining_axis_0) > 0) and 
-            np.all(np.diff(left_side_remaining_axis_1) < 0) and 
-            np.all(np.diff(right_side_remaining_axis_0) > 0) and 
-            np.all(np.diff(right_side_remaining_axis_1) < 0)
+            np.median(np.diff(left_side_remaining_axis_0) > 0) and 
+            np.median(np.diff(left_side_remaining_axis_1) < 0) and 
+            np.median(np.diff(right_side_remaining_axis_0) > 0) and 
+            np.median(np.diff(right_side_remaining_axis_1) < 0)
            ):
             first_axis = remaining_axes[1]
             third_axis = remaining_axes[0]
         elif (
-              np.all(np.diff(left_side_remaining_axis_0) < 0) and
-              np.all(np.diff(left_side_remaining_axis_1) < 0) and 
-              np.all(np.diff(right_side_remaining_axis_0) < 0) and 
-              np.all(np.diff(right_side_remaining_axis_1) < 0)
+              np.median(np.diff(left_side_remaining_axis_0) < 0) and
+              np.median(np.diff(left_side_remaining_axis_1) < 0) and 
+              np.median(np.diff(right_side_remaining_axis_0) < 0) and 
+              np.median(np.diff(right_side_remaining_axis_1) < 0)
              ): 
             # fixed for [[0. 1. 0.], [1. 0. 0.], [0. 0. 1.]]
             first_axis = remaining_axes[1]
             third_axis = remaining_axes[0]
             mirror_factors[2] = -1
         elif (
-              np.all(np.diff(left_side_remaining_axis_0) > 0) and
-              np.all(np.diff(left_side_remaining_axis_1) > 0) and 
-              np.all(np.diff(right_side_remaining_axis_0) > 0) and 
-              np.all(np.diff(right_side_remaining_axis_1) > 0)
+              np.median(np.diff(left_side_remaining_axis_0) > 0) and
+              np.median(np.diff(left_side_remaining_axis_1) > 0) and 
+              np.median(np.diff(right_side_remaining_axis_0) > 0) and 
+              np.median(np.diff(right_side_remaining_axis_1) > 0)
              ): 
             # fixed for [[-1.  0.  0.], [ 0. -1.  0.], [ 0.  0.  1.]]
             first_axis = remaining_axes[0]
@@ -637,36 +665,36 @@ def default_order_of_axis(exp_dict):
           np.all(left_side_remaining_axis_1 < right_side_remaining_axis_1)
          ):
         if (
-            np.all(np.diff(left_side_remaining_axis_0) < 0) and 
-            np.all(np.diff(left_side_remaining_axis_1) > 0) and 
-            np.all(np.diff(right_side_remaining_axis_0) < 0) and 
-            np.all(np.diff(right_side_remaining_axis_1) > 0)
+            np.median(np.diff(left_side_remaining_axis_0) < 0) and 
+            np.median(np.diff(left_side_remaining_axis_1) > 0) and 
+            np.median(np.diff(right_side_remaining_axis_0) < 0) and 
+            np.median(np.diff(right_side_remaining_axis_1) > 0)
            ):
             first_axis = remaining_axes[0]
             third_axis = remaining_axes[1]
         elif (
-            np.all(np.diff(left_side_remaining_axis_0) > 0) and 
-            np.all(np.diff(left_side_remaining_axis_1) < 0) and 
-            np.all(np.diff(right_side_remaining_axis_0) > 0) and 
-            np.all(np.diff(right_side_remaining_axis_1) < 0)
+            np.median(np.diff(left_side_remaining_axis_0) > 0) and 
+            np.median(np.diff(left_side_remaining_axis_1) < 0) and 
+            np.median(np.diff(right_side_remaining_axis_0) > 0) and 
+            np.median(np.diff(right_side_remaining_axis_1) < 0)
            ):
             first_axis = remaining_axes[1]
             third_axis = remaining_axes[0]
         elif (
-              np.all(np.diff(left_side_remaining_axis_0) < 0) and
-              np.all(np.diff(left_side_remaining_axis_1) < 0) and 
-              np.all(np.diff(right_side_remaining_axis_0) < 0) and 
-              np.all(np.diff(right_side_remaining_axis_1) < 0)
+              np.median(np.diff(left_side_remaining_axis_0) < 0) and
+              np.median(np.diff(left_side_remaining_axis_1) < 0) and 
+              np.median(np.diff(right_side_remaining_axis_0) < 0) and 
+              np.median(np.diff(right_side_remaining_axis_1) < 0)
              ): 
             # fixed for [[ 1.  0.  0.], [ 0. -1.  0.], [ 0.  0. -1.]]
             first_axis = remaining_axes[0]
             third_axis = remaining_axes[1]
             mirror_factors[2] = -1
         elif (
-              np.all(np.diff(left_side_remaining_axis_0) > 0) and
-              np.all(np.diff(left_side_remaining_axis_1) > 0) and 
-              np.all(np.diff(right_side_remaining_axis_0) > 0) and 
-              np.all(np.diff(right_side_remaining_axis_1) > 0)
+              np.median(np.diff(left_side_remaining_axis_0) > 0) and
+              np.median(np.diff(left_side_remaining_axis_1) > 0) and 
+              np.median(np.diff(right_side_remaining_axis_0) > 0) and 
+              np.median(np.diff(right_side_remaining_axis_1) > 0)
              ): 
             # fixed for [[ 0. -1.  0.], [ 0.  0. -1.], [ 1.  0.  0.]]
             first_axis = remaining_axes[1]
