@@ -271,7 +271,7 @@ def triangulate_2d(data, exp_dir):
         camNet.cam_list[cam_id].set_tvec(data[cam_id]["tvec"]) 
     camNet.triangulate() 
 
-    return camNet.points3d_m
+    return camNet.points3d
 
 def load_data_to_dict(data, skeleton):
     final_dict ={}
