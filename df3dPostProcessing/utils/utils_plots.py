@@ -23,6 +23,7 @@ import cv2 as cv
 from matplotlib.markers import MarkerStyle
 from pathlib import Path
 import pkgutil
+import scikit_posthocs as sp
 
 def plot_angles(angles,key,degrees=True):
     leg=angles[key+'_leg']
@@ -44,7 +45,7 @@ def plot_angles(angles,key,degrees=True):
     
     plt.show()
 
-def plot_angles_torques_grf(leg_key, angles={}, sim_data='walking', exp_dir='experiment', plot_angles=True, plot_torques=True, plot_grf=True, plot_collisions=True, collisions_across=True, begin=0.0, end=0.0, save_imgs=False, dir_name='dataPlots',torqueScalingFactor=1, grfScalingFactor=1, tot_time=9.0,time_step=0.001):    
+def plot_angles_torques_grf(leg_key, angles={}, sim_data='walking', exp_dir='experiment', plot_angles=True, plot_torques=True, plot_grf=True, plot_collisions=True, collisions_across=True, begin=0.0, end=0.0, save_imgs=False, dir_name='dataPlots',torqueScalingFactor=1, grfScalingFactor=1, tot_time=9.0, time_step=0.001):    
 
     data2plot={}
 
@@ -60,9 +61,9 @@ def plot_angles_torques_grf(leg_key, angles={}, sim_data='walking', exp_dir='exp
     sim_res_folder = os.path.join(pkg_path.parents[1],'scripts/KM/results')
     
     #sim_res_folder = '/home/nely/SimFly/kinematic_matching/results/'
-    torques_data = sim_res_folder + '/torques_data_ball_' + sim_data + '.pkl'
+    torques_data = sim_res_folder + '/torquesSC_data_ball_' + sim_data + '.pkl'
     if sim_data == 'walking':
-        grf_data = sim_res_folder + '/grf_data_ball_' + sim_data + '.pkl'
+        grf_data = sim_res_folder + '/grfSC_data_ball_' + sim_data + '.pkl'
     elif sim_data == 'grooming':
         collisions_data = sim_res_folder + '/selfCollisions_data_ball_' + sim_data + '.pkl'
 
@@ -226,6 +227,11 @@ def plot_angles_torques_grf(leg_key, angles={}, sim_data='walking', exp_dir='exp
     fig, axs = plt.subplots(len(data2plot.keys()), sharex=True)
     fig.suptitle(dir_name+' '+leg_key+ ' leg')
 
+    torque_min=np.inf
+    torque_max=0
+    grf_min=np.inf
+    grf_max=0
+
     for i, (plot, data) in enumerate(data2plot.items()):
         if plot == 'angles':
             for name, angle_rad in data.items():
@@ -239,12 +245,34 @@ def plot_angles_torques_grf(leg_key, angles={}, sim_data='walking', exp_dir='exp
                 torque_adj = np.delete(torque,0)
                 time = np.arange(0,len(torque_adj),1)/steps
                 axs[i].plot(time[start:stop], torque_adj[start:stop]*torqueScalingFactor,label=joint)
+            
+                t_min = np.min(torque_adj[start:stop]*torqueScalingFactor)
+                t_max = np.max(torque_adj[start:stop]*torqueScalingFactor)
+            
+                if t_min < torque_min:
+                    torque_min = t_min
+                
+                if t_max > torque_max:
+                    torque_max = t_max
+
             axs[i].set_ylabel('Joint torque ' + r'$(\mu Nmm)$')
+            axs[i].set_ylim(1.2*torque_min, 1.1*torque_max)
+           
 
         if plot == 'grf':
             time = np.arange(0,len(leg_force),1)/steps
             axs[i].plot(time[start:stop],leg_force[start:stop]*grfScalingFactor,color='black')
             axs[i].set_ylabel('Ball reaction force' + r'$(\mu N)$')
+            f_min = np.min(leg_force[start:stop]*grfScalingFactor)
+            f_max = np.max(leg_force[start:stop]*grfScalingFactor)
+            
+            if f_min < grf_min:
+                grf_min = f_min
+                
+            if f_max > grf_max:
+                grf_max = f_max
+                
+            axs[i].set_ylim(-0.003, 1.1*grf_max)
 
         if plot == 'collisions':
             time = np.arange(0,len(leg_force),1)/steps
@@ -342,14 +370,14 @@ def plot_gait_diagram(begin=0,end=0):
     plt.show()
 '''
 
-def plot_collisions_diagram(sim_data, begin=0, end=0, opt_res=False, generation='', exp=''):
+def plot_collisions_diagram(sim_data, begin=0, end=0, opt_res=False, generation='', exp='',tot_time=9.0, time_step=0.001):
     data={}
     pkg_path = Path(pkgutil.get_loader("NeuroMechFly").get_filename())
     sim_res_folder = os.path.join(pkg_path.parents[1],'scripts/KM/results')
 
     if sim_data == 'walking':
         if not opt_res:
-            collisions_data = sim_res_folder + '/grf_data_ball_walking.pkl'
+            collisions_data = sim_res_folder + '/grfSC_data_ball_walking.pkl'
         else:
             sim_res_folder = os.path.join(pkg_path.parents[1],'scripts/Optimization/Output_data/grf',exp)
             collisions_data = sim_res_folder +'/grf_optimization_gen_'+generation+'.pkl'
@@ -357,13 +385,11 @@ def plot_collisions_diagram(sim_data, begin=0, end=0, opt_res=False, generation=
         collisions_data = sim_res_folder + '/selfCollisions_data_ball_grooming.pkl'
 
     if end == 0:
-        if not opt_res:
-            end = 9.0
-        else:
-            end = 5.0 
+        end = tot_time 
 
-    start = int(begin*100)
-    stop = int(end*100)
+    steps = 1/time_step
+    start = int(begin*steps)
+    stop = int(end*steps)
     
     with open(collisions_data, 'rb') as fp:
         data = pickle.load(fp)    
@@ -392,7 +418,7 @@ def plot_collisions_diagram(sim_data, begin=0, end=0, opt_res=False, generation=
     for i, (segment, force) in enumerate(collisions.items()):
         sum_force = np.sum(np.array(force), axis = 0)
         segment_force = np.delete(sum_force,0)
-        time = np.arange(0,len(segment_force),1)/100
+        time = np.arange(0,len(segment_force),1)/steps
         stance_ind = np.where(segment_force>0)[0]
         if stance_ind.size!=0:
             stance_diff = np.diff(stance_ind)
@@ -728,7 +754,7 @@ def plot_fly_path(begin=0, end=0, sequence=True, save_imgs=False, experiment='',
                 cb.set_label('Time (s)')        
     plt.show()
 
-def draw_collisions_on_imgs(data_2d, experiment, sim_data='grooming', side='L', begin=0, end=0, save_imgs=False,pause=0,grfScalingFactor=10,scale=120):
+def draw_collisions_on_imgs(data_2d, experiment, sim_data='grooming', side='R', begin=0, end=0, save_imgs=False,pause=0,grfScalingFactor=1,scale=3,tot_time=9.0, time_step_data=0.001, time_step_img=0.01):
     data={}
 
     pkg_path = Path(pkgutil.get_loader("NeuroMechFly").get_filename())
@@ -739,10 +765,15 @@ def draw_collisions_on_imgs(data_2d, experiment, sim_data='grooming', side='L', 
     colors = {'a':(0,0,139),'1':(0,0,255),'2':(71,99,255),'3':(92,92,205),'4':(128,128,240),'5':(122,160,255)}
 
     if end == 0:
-        end = 9.0
+        end = tot_time
 
-    start = int(begin*100)
-    stop = int(end*100)
+    steps_data = 1/time_step_data
+    steps_img = 1/time_step_img
+    diff_steps = time_step_img/time_step_data
+    start = int(begin*steps_data)
+    stop = int(end*steps_data)
+    start_img = int(begin*steps_img)+1
+    stop_img = int(end*steps_img)+2
     
     with open(grf_data, 'rb') as fp:
         data = pickle.load(fp)
@@ -764,10 +795,10 @@ def draw_collisions_on_imgs(data_2d, experiment, sim_data='grooming', side='L', 
     raw_imgs=[]
     ind_folder = experiment.find('df3d')
     imgs_folder = experiment[:ind_folder-1]
-    for frame in range(start,stop):
-        if side=='L':
+    for frame in range(start_img,stop_img):
+        if side=='R':
             cam_num = 1
-        elif side=='R':
+        elif side=='L':
             cam_num = 5
         img_name = imgs_folder + '/camera_' +str(cam_num)+ '_img_' + '{:06}'.format(frame) + '.jpg'
         #print(img_name)
@@ -823,13 +854,15 @@ def draw_collisions_on_imgs(data_2d, experiment, sim_data='grooming', side='L', 
                     prev = 'Tarsus'
                     div = 1
                 for ind in range(0,len(stance_plot),2):
-                    for frame in range(stance_plot[ind],stance_plot[ind+1]):
+                    for frame in range(stance_plot[ind],stance_plot[ind+1],int(diff_steps)):
+                        cam_frame = int(frame/diff_steps)+1
+                        img_frame = int((frame-start)/diff_steps)
                         
-                        x_base = data_2d[cam_num][side+'F_leg'][bodyPart][frame][0]
-                        y_base = data_2d[cam_num][side+'F_leg'][bodyPart][frame][1]
+                        x_base = data_2d[cam_num][side+'F_leg'][bodyPart][cam_frame][0]
+                        y_base = data_2d[cam_num][side+'F_leg'][bodyPart][cam_frame][1]
 
-                        x_prev = data_2d[cam_num][side+'F_leg'][prev][frame][0]
-                        y_prev = data_2d[cam_num][side+'F_leg'][prev][frame][1]
+                        x_prev = data_2d[cam_num][side+'F_leg'][prev][cam_frame][0]
+                        y_prev = data_2d[cam_num][side+'F_leg'][prev][cam_frame][1]
 
                         x_px = int(x_prev + div*(x_base-x_prev))
                         y_px = int(y_prev + div*(y_base-y_prev))
@@ -847,13 +880,13 @@ def draw_collisions_on_imgs(data_2d, experiment, sim_data='grooming', side='L', 
                         
                         force_x = leg_force[frame]*np.cos(mean_angle)*grfScalingFactor
                         force_z = leg_force[frame]*np.sin(mean_angle)*grfScalingFactor
-                        h, w, c = raw_imgs[frame-start].shape
+                        h, w, c = raw_imgs[img_frame].shape
                         end_pnt = [x_px+(force_x*h/(2*scale)), y_px-(force_z*h/(2*scale))]
                         color = colors[leg[-1]]
-                        raw_imgs[frame-start] = draw_lines(raw_imgs[frame-start],start_pnt,end_pnt,color=color,thickness=3,arrowHead=True)
+                        raw_imgs[img_frame] = draw_lines(raw_imgs[img_frame],start_pnt,end_pnt,color=color,thickness=3,arrowHead=True)
                        
     for i, img in enumerate(raw_imgs):
-        print('\rFrame: ' + str(i+start),end='')
+        print('\rFrame: ' + str(i+start_img),end='')
         if save_imgs:
             file_name = experiment.split('/')[-1]
             new_folder = 'results/'+file_name.replace('.pkl','/')+'grf_on_raw'
@@ -867,7 +900,7 @@ def draw_collisions_on_imgs(data_2d, experiment, sim_data='grooming', side='L', 
             cv.waitKey(pause)
     cv.destroyAllWindows()
     
-def draw_grf_on_imgs(data_2d, experiment, sim_data='walking', side='L', begin=0, end=0, save_imgs=False,pause=0,grfScalingFactor=10,scale=12):
+def draw_grf_on_imgs(data_2d, experiment, sim_data='walking', side='R', begin=0, end=0, save_imgs=False,pause=0,grfScalingFactor=100,scale=3,tot_time=9.0, time_step_data=0.001, time_step_img=0.01):
     data={}
 
     pkg_path = Path(pkgutil.get_loader("NeuroMechFly").get_filename())
@@ -878,10 +911,15 @@ def draw_grf_on_imgs(data_2d, experiment, sim_data='walking', side='L', begin=0,
     colors = {'RF_leg':(0,0,204),'RM_leg':(51,51,255),'RH_leg':(102,102,255),'LF_leg':(153,76,0),'LM_leg':(255,128,0),'LH_leg':(255,178,102)}
 
     if end == 0:
-        end = 9.0
+        end = tot_time
 
-    start = int(begin*100)
-    stop = int(end*100)
+    steps_data = 1/time_step_data
+    steps_img = 1/time_step_img
+    diff_steps = time_step_img/time_step_data
+    start = int(begin*steps_data)
+    stop = int(end*steps_data)
+    start_img = int(begin*steps_img)+1
+    stop_img = int(end*steps_img)+2
     
     with open(grf_data, 'rb') as fp:
         data = pickle.load(fp)
@@ -894,21 +932,21 @@ def draw_grf_on_imgs(data_2d, experiment, sim_data='walking', side='L', begin=0,
     raw_imgs=[]
     ind_folder = experiment.find('df3d')
     imgs_folder = experiment[:ind_folder-1]
-    for frame in range(start,stop):
-        if side=='L':
+    for frame in range(start_img,stop_img):
+        if side=='R':
             cam_num = 1
-        elif side=='R':
+        elif side=='L':
             cam_num = 5
         img_name = imgs_folder + '/camera_' +str(cam_num)+ '_img_' + '{:06}'.format(frame) + '.jpg'
         #print(img_name)
         img = cv.imread(img_name)
         raw_imgs.append(img)
-
+    
     for i, (leg, force) in enumerate(grf.items()):
         if side in leg:
             sum_force = np.sum(np.array(force), axis = 0)
             leg_force = np.delete(sum_force,0)
-            time = np.arange(0,len(leg_force),1)/100
+            #time = np.arange(0,len(leg_force),1)/100
             stance_ind = np.where(leg_force>0)[0]
             if stance_ind.size!=0:
                 stance_diff = np.diff(stance_ind)
@@ -935,11 +973,14 @@ def draw_grf_on_imgs(data_2d, experiment, sim_data='walking', side='L', begin=0,
                     stance_plot.append(stop)
 
                 for ind in range(0,len(stance_plot),2):
-                    for frame in range(stance_plot[ind],stance_plot[ind+1]):
-                        x_px = int(data_2d[cam_num][leg+'_leg']['Claw'][frame][0])
-                        y_px = int(data_2d[cam_num][leg+'_leg']['Claw'][frame][1])
+                    for frame in range(stance_plot[ind],stance_plot[ind+1],int(diff_steps)):
+                        cam_frame = int(frame/diff_steps)+1
+                        img_frame = int((frame-start)/diff_steps)
+                        
+                        x_px = int(data_2d[cam_num][leg+'_leg']['Claw'][cam_frame][0])
+                        y_px = int(data_2d[cam_num][leg+'_leg']['Claw'][cam_frame][1])
                         start_pnt = [x_px, y_px]
-                        np.array(grf['LF']).transpose()[i+start+1]
+                        #np.array(grf['LF']).transpose()[i+start+1]
                         force_vals = np.array(grf[leg]).transpose()[frame+1]
                         poi = np.where(force_vals>0)[0]
                         if poi.size!=0:
@@ -951,13 +992,13 @@ def draw_grf_on_imgs(data_2d, experiment, sim_data='walking', side='L', begin=0,
                         
                         force_x = leg_force[frame]*np.cos(mean_angle)*grfScalingFactor
                         force_z = leg_force[frame]*np.sin(mean_angle)*grfScalingFactor
-                        h, w, c = raw_imgs[frame-start].shape
+                        h, w, c = raw_imgs[img_frame].shape
                         end_pnt = [x_px+(force_x*h/(2*scale)), y_px-(force_z*h/(2*scale))]
                         color = colors[leg+'_leg']
-                        raw_imgs[frame-start] = draw_lines(raw_imgs[frame-start],start_pnt,end_pnt,color=color,thickness=3,arrowHead=True)
-                       
+                        raw_imgs[img_frame] = draw_lines(raw_imgs[img_frame],start_pnt,end_pnt,color=color,thickness=3,arrowHead=True)
+    
     for i, img in enumerate(raw_imgs):
-        print('\rFrame: ' + str(i+start),end='')
+        print('\rFrame: ' + str(i+start_img),end='')
         if save_imgs:
             file_name = experiment.split('/')[-1]
             new_folder = 'results/'+file_name.replace('.pkl','/')+'grf_on_raw'
@@ -970,7 +1011,7 @@ def draw_grf_on_imgs(data_2d, experiment, sim_data='walking', side='L', begin=0,
             cv.imshow('img',img)
             cv.waitKey(pause)
     cv.destroyAllWindows()
-
+    
 
 def draw_legs_from_3d(data,exp_dir,data_2d,side='L',dir_name='traking_2d_from_3d_data',begin=0,end=0,saveimgs = False,pixelSize=[5.86e-3,5.86e-3,5.86e-3],pause=0):
     if side == 'L':
@@ -1557,9 +1598,9 @@ def calculate_svm_from_angles(angles, diff,align):
 
     plot_heatmap(mat,list(angles.keys()),'RMSE')
 
-def plot_error(errors_dict,begin=0,end=0,name='filename.png',dpi=300,save=False,BL=2.88):
+def plot_error(errors_dict,begin=0,end=0,name='filename.png',dpi=300,split=False,save=False,BL=2.88):
     legs = list(errors_dict.keys())
-    angles = list(errors_dict['LF_leg'].keys())
+    angles = list(errors_dict[legs[0]].keys())
     df_errors = pd.DataFrame()
 
     colors = [(204/255,0,0),(1,51/255,51/255),(1,102/255,102/255),(0,76/255,153/255),(0,0.5,1),(102/255,178/255,1)]
@@ -1580,13 +1621,23 @@ def plot_error(errors_dict,begin=0,end=0,name='filename.png',dpi=300,save=False,
             df_vals['angle'] = angle
 
             df_errors = df_errors.append(df_vals, ignore_index = True)
+    mean_vals=[]
+
+    data = [e.loc[ids, 'norm_error'].values for ids in e.groupby('angle').groups.values()]
+    stats.kruskal(*data)
+    ph=sp.posthoc_conover(e, val_col='norm_error', group_col='angle', p_adjust = 'holm')
+    ph.where(ph>0.01)
+    #stats.kruskal()
     
+    '''
     for angle1 in angles:
         x1 = df_errors['norm_error'].loc[df_errors['angle']==angle1]
-        print(angle1 + ' mean/std = ' + str(np.mean(x1)) + ' /+- ' + str(np.std(x1)))
+        #mean_vals.append(np.mean(x1))
+        #print(angle1 + ' mean/std = ' + str(np.mean(x1)) + ' /+- ' + str(np.std(x1)))
         for angle2 in angles[angles.index(angle1)+1:]:
         #if angle != 'base':            
             x2 = df_errors['norm_error'].loc[df_errors['angle']==angle2]
+            
             ztest , pval = stests.ztest(x1, x2=x2, value=0, alternative='two-sided')
 
             print(angle1 + ' vs ' + angle2 + ': ', ztest, pval,)
@@ -1594,12 +1645,19 @@ def plot_error(errors_dict,begin=0,end=0,name='filename.png',dpi=300,save=False,
                 print(angle1 + " is not statistically different from " + angle2)
         print()
     
-    ax = sns.violinplot(x='angle', y='norm_error', data=df_errors, color="0.8")
-    for violin, alpha in zip(ax.collections[::2], [0.7]*len(angles)):
+    ax = sns.violinplot(x='angle', y='norm_error', data=df_errors, color="0.8", cut=0, inner='quartiles')
+    for violin, alpha in zip(ax.collections[::1], [0.7]*len(angles)):
         violin.set_alpha(alpha)
-    ax = sns.stripplot(x='angle', y='norm_error', hue='leg', data=df_errors, jitter=True, zorder=0, size=3)
+    ax = sns.stripplot(x='angle', y='norm_error', hue='leg', data=df_errors, dodge=split, jitter=True, zorder=0, size=3)
     #ax = sns.swarmplot(x='angle', y='norm_error', hue='leg', data=df_errors, zorder=0, size=3)
-    ax.legend(loc='upper right', bbox_to_anchor=(1.12, 1))
+    handles, labels = ax.get_legend_handles_labels()
+    if split:
+        ax.legend(handles[len(angles)*len(legs):], labels[len(angles)*len(legs):],loc='upper right', bbox_to_anchor=(1.12, 1))
+    else:
+        ax.legend(handles[len(angles):], labels[len(angles):],loc='upper right', bbox_to_anchor=(1.12, 1))
+    #ax.set_yscale('log')
+    #ax.set_ylim(0,6)
+    #plt.plot(np.arange(len(mean_vals)), mean_vals, 'kP', markersize=10)
     plt.title('Comparison adding an extra DOF')
     
     figure = plt.gcf()  # get current figure
@@ -1609,6 +1667,7 @@ def plot_error(errors_dict,begin=0,end=0,name='filename.png',dpi=300,save=False,
     if save:
         plt.savefig(name, dpi=dpi,bbox_inches='tight')
     plt.show()
+    '''
     
     return df_errors
 
@@ -1633,32 +1692,7 @@ def calculate_inverse_kinematics(data_dict, init_angles={},roll_tr=False):
         else:
             init_pos = [0]
             for key in angles_ik[name].keys():
-                #if 'roll' in key and '_tr' not in key:
-                #    if 'LM' in name or 'LH' in name:
-                #        init_pos.append(-(np.pi/2 + init_angles[name][key][0]))
-                #    elif 'RM' in name or 'RH' in name:
-                #        init_pos.append((np.pi/2 + init_angles[name][key][0]))
-                #    else:
-                #        init_pos.append(init_angles[name][key][0])
-                #else:
-                #    init_pos.append(init_angles[name][key][0])
-                if 'roll' in key and '_tr' not in key:
-                    if 'RF' in name:
-                        init_pos.append(np.pi-init_angles[name][key][0])
-                    elif 'RM' in name:
-                        init_pos.append(np.pi/2+init_angles[name][key][0])
-                    elif 'RH' in name:
-                        init_pos.append(-init_angles[name][key][0])
-                    elif 'LF' in name:
-                        init_pos.append(np.pi+init_angles[name][key][0])
-                    elif 'LM' in name:
-                        init_pos.append(-np.pi/2-init_angles[name][key][0])
-                    elif 'LH' in name:
-                        init_pos.append(init_angles[name][key][0])
-                elif 'th_fe' in key or 'th_ti' in key or 'th_ta' in key:
-                    init_pos.append(np.pi-init_angles[name][key][0])
-                else:
-                    init_pos.append(init_angles[name][key][0])
+                init_pos.append(init_angles[name][key][0])
                     
             init_pos.append(0)
 
@@ -1861,7 +1895,7 @@ def calculate_min_error(angles,data_dict,begin=0,end=0,extraDOF = ['base'],legs_
                     errors_dict[name][key]['min_error'].append([d_tot,d_fe,d_ti,d_ta,d_claw])
                 elif key == 'base_rollTr':
                     #pos_3d = calculate_forward_kinematics(name, frame, leg, data_dict)
-                    pos_3d = calculate_forward_kinematics(name, frame, leg, data_dict,extraDOF={'roll_tr':angles[name]['roll_tr'][frame]})
+                    pos_3d = calculate_forward_kinematics(name, frame, leg, data_dict,extraDOF={'roll_tr':angles})
 
                     d_fe = np.linalg.norm(pos_3d[1]-real_pos_femur)
                     d_ti = np.linalg.norm(pos_3d[2]-real_pos_tibia) 
