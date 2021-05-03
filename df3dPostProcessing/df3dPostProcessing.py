@@ -1,6 +1,7 @@
 import numpy as np
 import os
 import pickle
+import scipy.signal
 from .utils.utils_alignment import align_3d
 from .utils.utils_angles import calculate_angles
 #from .utils.utils_plots import *
@@ -154,48 +155,48 @@ template_nmf = {'RFCoxa':[0.35, -0.27, 0.400],
                 'LHTarsus':[-0.215, 0.087, -1.793],
                 'LHClaw':[-0.215, 0.087, -2.588]}
 
-zero_pose_nmf = {'RF_leg':{'yaw':0,
-                           'pitch':0,
-                           'roll':0,
-                           'roll_tr':0,
-                           'th_fe':-np.pi,
-                           'th_ti':np.pi,
-                           'th_ta':-np.pi},
-                 'RM_leg':{'yaw':0,
-                           'pitch':0,
-                           'roll':-np.pi/2,
-                           'roll_tr':0,
-                           'th_fe':-np.pi,
-                           'th_ti':np.pi,
-                           'th_ta':-np.pi},
-                 'RH_leg':{'yaw':0,
-                           'pitch':0,
-                           'roll':-np.pi,
-                           'roll_tr':0,
-                           'th_fe':-np.pi,
-                           'th_ti':np.pi,
-                           'th_ta':-np.pi},
-                 'LF_leg':{'yaw':0,
-                           'pitch':0,
-                           'roll':0,
-                           'roll_tr':0,
-                           'th_fe':-np.pi,
-                           'th_ti':np.pi,
-                           'th_ta':-np.pi},
-                 'LM_leg':{'yaw':0,
-                           'pitch':0,
-                           'roll':np.pi/2,
-                           'roll_tr':0,
-                           'th_fe':-np.pi,
-                           'th_ti':np.pi,
-                           'th_ta':-np.pi},
-                 'LH_leg':{'yaw':0,
-                           'pitch':0,
-                           'roll':np.pi,
-                           'roll_tr':0,
-                           'th_fe':-np.pi,
-                           'th_ti':np.pi,
-                           'th_ta':-np.pi}}
+zero_pose_nmf = {'RF_leg':{'ThC_yaw':0,
+                           'ThC_pitch':0,
+                           'ThC_roll':0,
+                           'CTr_roll':0,
+                           'CTr_pitch':-np.pi,
+                           'FTi_pitch':np.pi,
+                           'TiTa_pitch':-np.pi},
+                 'RM_leg':{'ThC_yaw':0,
+                           'ThC_pitch':0,
+                           'ThC_roll':-np.pi/2,
+                           'CTr_roll':0,
+                           'CTr_pitch':-np.pi,
+                           'FTi_pitch':np.pi,
+                           'TiTa_pitch':-np.pi},
+                 'RH_leg':{'ThC_yaw':0,
+                           'ThC_pitch':0,
+                           'ThC_roll':-np.pi,
+                           'CTr_roll':0,
+                           'CTr_pitch':-np.pi,
+                           'FTi_pitch':np.pi,
+                           'TiTa_pitch':-np.pi},
+                 'LF_leg':{'ThC_yaw':0,
+                           'ThC_pitch':0,
+                           'ThC_roll':0,
+                           'CTr_roll':0,
+                           'CTr_pitch':-np.pi,
+                           'FTi_pitch':np.pi,
+                           'TiTa_pitch':-np.pi},
+                 'LM_leg':{'ThC_yaw':0,
+                           'ThC_pitch':0,
+                           'ThC_roll':np.pi/2,
+                           'CTr_roll':0,
+                           'CTr_pitch':-np.pi,
+                           'FTi_pitch':np.pi,
+                           'TiTa_pitch':-np.pi},
+                 'LH_leg':{'ThC_yaw':0,
+                           'ThC_pitch':0,
+                           'ThC_roll':np.pi,
+                           'CTr_roll':0,
+                           'CTr_pitch':-np.pi,
+                           'FTi_pitch':np.pi,
+                           'TiTa_pitch':-np.pi}}
 
 class df3dPostProcess:
     def __init__(self, exp_dir, multiple = False, file_name = '', skeleton='df3d', calculate_3d=False):
@@ -216,11 +217,11 @@ class df3dPostProcess:
 
         return self.aligned_model
 
-    def calculate_leg_angles(self, begin = 0, end = 0, get_roll_tr = True, save_angles=False, use_zero_pose=True, zero_pose=None):
+    def calculate_leg_angles(self, begin = 0, end = 0, get_CTr_roll = True, save_angles=False, use_zero_pose=True, zero_pose=None):
         if not zero_pose:
             zero_pose = self.zero_pose
                 
-        leg_angles = calculate_angles(self.aligned_model, begin, end, get_roll_tr, zero_pose)
+        leg_angles = calculate_angles(self.aligned_model, begin, end, get_CTr_roll, zero_pose)
 
         if use_zero_pose:
             for leg, angles in leg_angles.items():
@@ -232,6 +233,21 @@ class df3dPostProcess:
             with open(path, 'wb') as f:
                 pickle.dump(leg_angles, f)
         return leg_angles
+
+    def calculate_velocity(self, data, window=11, order=3, time_step=0.001, save_velocities=False):
+        velocities = {}
+        for leg, angles in data.items():
+            velocities[leg]={}
+            for th, data in angles.items():
+                vel = scipy.signal.savgol_filter(data, window, order, deriv=1, delta=time_step, mode='nearest')
+                velocities[leg][th]=vel
+
+        if save_velocities:
+            path = self.exp_dir.replace('pose_result','joint_velocities')
+            with open(path, 'wb') as f:
+                pickle.dump(velocities, f)
+            
+        return velocities
 
     
     def load_data(self, exp, calculate_3d, skeleton, multiple, file_name):
