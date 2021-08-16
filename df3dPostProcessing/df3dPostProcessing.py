@@ -222,14 +222,14 @@ def triangulate_2d(data, exp_dir):
 
     camNet = correct_outliers(camNet)
 
-    return camNet.points3d_m
+    return camNet.points3d
 
 
 def correct_outliers(camNet):
     from deepfly.cv_util import triangulate_linear
 
-    #outlier_image_ids = np.where(np.abs(camNet.points3d_m) > 5)[0]
-    #outlier_joint_ids = np.where(np.abs(camNet.points3d_m) > 5)[1]
+    #outlier_image_ids = np.where(np.abs(camNet.points3d) > 5)[0]
+    #outlier_joint_ids = np.where(np.abs(camNet.points3d) > 5)[1]
     #print(outlier_image_ids)
     #print(outlier_joint_ids)
 
@@ -242,8 +242,8 @@ def correct_outliers(camNet):
                              dtype=np.int)
     stop_indices = start_indices + 1
     #pairs = np.vstack((start_indices, stop_indices))
-    #lengths = np.sum((camNet.points3d_m[:, start_indices, :] - camNet.points3d_m[:, stop_indices, :]) ** 2, axis=2)
-    lengths = np.linalg.norm(camNet.points3d_m[:, start_indices, :] - camNet.points3d_m[:, stop_indices, :], axis=2)
+    #lengths = np.sum((camNet.points3d[:, start_indices, :] - camNet.points3d[:, stop_indices, :]) ** 2, axis=2)
+    lengths = np.linalg.norm(camNet.points3d[:, start_indices, :] - camNet.points3d[:, stop_indices, :], axis=2)
     median_lengths = np.median(lengths, axis=0)
     #length_outliers = (lengths > np.quantile(lengths, 0.99, axis=0)) | (lengths < np.quantile(lengths, 0.01, axis=0))
     length_outliers = (lengths > median_lengths * 1.4) | (lengths < median_lengths * 0.4)
@@ -251,7 +251,7 @@ def correct_outliers(camNet):
     #print(np.max(lengths, axis=0))
     #print(np.quantile(lengths, 0.01, axis=0))
     #print(np.min(lengths, axis=0))
-    outlier_mask = np.zeros(camNet.points3d_m.shape, dtype=np.bool)
+    outlier_mask = np.zeros(camNet.points3d.shape, dtype=np.bool)
     for i, mask_offset in enumerate([0, 5, 10, 19, 24, 29]):
         claw_outliers = np.where(length_outliers[:, i * 4 + 3] & ~length_outliers[:, i * 4 + 2])[0]
         tarsus_outliers = np.where(length_outliers[:, i * 4 + 3] & length_outliers[:, i * 4 + 2])[0]
@@ -289,10 +289,10 @@ def correct_outliers(camNet):
             new_diff = 0
             median_index = np.where(stop_indices == joint_id)[0]
             if len(median_index) > 0:
-                new_diff += np.linalg.norm(points3d_using_2_cams - camNet.points3d_m[img_id, joint_id - 1]) - median_lengths[median_index]
+                new_diff += np.linalg.norm(points3d_using_2_cams - camNet.points3d[img_id, joint_id - 1]) - median_lengths[median_index]
             median_index = np.where(start_indices == joint_id)[0]
             if len(median_index) > 0:
-                new_diff += np.linalg.norm(points3d_using_2_cams - camNet.points3d_m[img_id, joint_id + 1]) - median_lengths[median_index]
+                new_diff += np.linalg.norm(points3d_using_2_cams - camNet.points3d[img_id, joint_id + 1]) - median_lengths[median_index]
             segment_length_diff.append(new_diff)
 
             reprojection_error_function = lambda cam_id: camNet.cam_list[cam_id].project(points3d_using_2_cams) - camNet.cam_list[cam_id].points2d[img_id, joint_id]
@@ -300,7 +300,7 @@ def correct_outliers(camNet):
             reprojection_errors.append(reprojection_error)
             points_using_2_cams.append(points3d_using_2_cams)
 
-        #reprojection_error_function = lambda cam_id: camNet.cam_list[cam_id].project(camNet.points3d_m[img_id, joint_id]) - camNet.cam_list[cam_id].points2d[img_id, joint_id]
+        #reprojection_error_function = lambda cam_id: camNet.cam_list[cam_id].project(camNet.points3d[img_id, joint_id]) - camNet.cam_list[cam_id].points2d[img_id, joint_id]
         #reprojection_error_3_cams = np.mean([reprojection_error_function(cam_id) for cam_id in all_cam_ids])
 
         #if np.min(reprojection_errors) < reprojection_error_3_cams:
@@ -313,17 +313,17 @@ def correct_outliers(camNet):
         median_index = np.where(stop_indices == joint_id)[0]
         if len(median_index) > 0:
             #print(pairs[:, median_index], joint_id, joint_id - 1)
-            old_diff += np.linalg.norm(camNet.points3d_m[img_id, joint_id] - camNet.points3d_m[img_id, joint_id - 1]) - median_lengths[median_index]
-            new_diff += np.linalg.norm(points_using_2_cams[best_cam_tuple_index] - camNet.points3d_m[img_id, joint_id - 1]) - median_lengths[median_index]
+            old_diff += np.linalg.norm(camNet.points3d[img_id, joint_id] - camNet.points3d[img_id, joint_id - 1]) - median_lengths[median_index]
+            new_diff += np.linalg.norm(points_using_2_cams[best_cam_tuple_index] - camNet.points3d[img_id, joint_id - 1]) - median_lengths[median_index]
         median_index = np.where(start_indices == joint_id)[0]
         if len(median_index) > 0:
             #print(pairs[:, median_index], joint_id, joint_id + 1)
-            old_diff += np.linalg.norm(camNet.points3d_m[img_id, joint_id] - camNet.points3d_m[img_id, joint_id + 1]) - median_lengths[median_index]
-            new_diff += np.linalg.norm(points_using_2_cams[best_cam_tuple_index] - camNet.points3d_m[img_id, joint_id + 1]) - median_lengths[median_index]
+            old_diff += np.linalg.norm(camNet.points3d[img_id, joint_id] - camNet.points3d[img_id, joint_id + 1]) - median_lengths[median_index]
+            new_diff += np.linalg.norm(points_using_2_cams[best_cam_tuple_index] - camNet.points3d[img_id, joint_id + 1]) - median_lengths[median_index]
 
         if new_diff < old_diff:
             #print("correcting", img_id, joint_id)
-            camNet.points3d_m[img_id, joint_id] = points_using_2_cams[best_cam_tuple_index]
+            camNet.points3d[img_id, joint_id] = points_using_2_cams[best_cam_tuple_index]
         #else:
         #    pass
             #print("not correcting", img_id, joint_id, new_diff, old_diff)
@@ -332,16 +332,16 @@ def correct_outliers(camNet):
         #    print(new_diff)
         #    print(old_diff)
         #    exit()
-    #print(np.histogram(np.max(camNet.points3d_m[:, :, 0], axis=1)))
+    #print(np.histogram(np.max(camNet.points3d[:, :, 0], axis=1)))
     #exit()
-    #center_frame_index = np.argmax(np.max(camNet.points3d_m[:, :, 0], axis=1))
+    #center_frame_index = np.argmax(np.max(camNet.points3d[:, :, 0], axis=1))
     #center_frame_index = 12801
     #center_frame_index = 18957
     #print(center_frame_index)
-    #camNet.points3d_m = camNet.points3d_m[max(0, center_frame_index - 50):min(camNet.points3d_m.shape[0], center_frame_index + 50)]
+    #camNet.points3d = camNet.points3d[max(0, center_frame_index - 50):min(camNet.points3d.shape[0], center_frame_index + 50)]
     #exit()
-    #print(camNet.points3d_m.shape)
-    camNet.points3d_m = deepfly.signal_util.filter_batch(camNet.points3d_m, freq=100)
+    #print(camNet.points3d.shape)
+    camNet.points3d = deepfly.signal_util.filter_batch(camNet.points3d, freq=100)
     return camNet
 
 
