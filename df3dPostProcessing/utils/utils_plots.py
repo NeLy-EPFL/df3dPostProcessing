@@ -1188,7 +1188,7 @@ def plot_SG_angles(angles,degrees=True):
     plt.show()
 
 def plot_3d_and_2d(data, plane='xz', begin=0,end=0,metric = 'raw_pos_aligned', savePlot = False, pause=False):
-    colors = {'RF':(1,0,0),'RM':(0,1,0),'RH':(0,0,1),'LF':(1,1,0),'LM':(1,0,1),'LH':(0,1,1)}
+    colors = {'RF':(1,0,0),'RM':(0,1,0),'RH':(0,0,1),'LF':(1,1,0),'LM':(1,0,1),'LH':(0,1,1),'He':(1,1,1)}
     if end == 0:
         end = len(data['LF_leg']['Coxa'][metric])
     fig_3d = plt.figure()
@@ -1202,7 +1202,7 @@ def plot_3d_and_2d(data, plane='xz', begin=0,end=0,metric = 'raw_pos_aligned', s
             ax_2d = plt.axes()
             
         for segment, landmark in data.items():
-            if 'L' in segment or 'R' in segment:
+            #if 'L' in segment or 'R' in segment:
                 x=[]
                 y=[]
                 z=[]

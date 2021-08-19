@@ -153,7 +153,9 @@ template_nmf = {'RFCoxa':[0.35, -0.27, 0.400],
                 'LHFemur':[-0.215, 0.087, -0.272],
                 'LHTibia':[-0.215, 0.087, -1.108],
                 'LHTarsus':[-0.215, 0.087, -1.793],
-                'LHClaw':[-0.215, 0.087, -2.588]}
+                'LHClaw':[-0.215, 0.087, -2.588],
+                'RAntenna':[0.25, -0.068, 0.67],
+                'LAntenna':[0.25, 0.068, 0.67]}
 
 zero_pose_nmf = {'RF_leg':{'ThC_yaw':0,
                            'ThC_pitch':0,
@@ -212,8 +214,8 @@ class df3dPostProcess:
         self.data_2d_dict = load_data_to_dict(self.raw_data_2d, skeleton)
         self.aligned_model = {}
 
-    def align_to_template(self,scale=True,interpolate=False,smoothing=True,original_time_step= 0.01,new_time_step=0.001,window_length=29):
-        self.aligned_model = align_3d(self.data_3d_dict,self.skeleton,self.template,scale,interpolate, smoothing, original_time_step, new_time_step, window_length)
+    def align_to_template(self,scale=True,all_body=False,interpolate=False,smoothing=True,original_time_step= 0.01,new_time_step=0.001,window_length=29):
+        self.aligned_model = align_3d(self.data_3d_dict,self.skeleton,self.template,scale,all_body,interpolate, smoothing, original_time_step, new_time_step, window_length)
 
         return self.aligned_model
 

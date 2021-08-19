@@ -5,11 +5,12 @@ from mpl_toolkits.mplot3d import Axes3D
 from scipy.spatial.transform import Rotation as R
 from scipy.interpolate import pchip_interpolate
 
-def align_3d(pos_3d_dict,skeleton,template,scale,interpolate,smoothing,ots,nts,window_length):
+def align_3d(pos_3d_dict,skeleton,template,scale,all_body,interpolate,smoothing,ots,nts,window_length):
     if skeleton == 'prism':
         pos_3d_dict = get_flycentric(pos_3d_dict)
     fix = get_fix_coxae_pos(pos_3d_dict)
-    align = align_3d_to_template(fix,skeleton,template,scale)
+    #align = align_3d_to_template(fix,skeleton,template,scale)
+    align = align_pos_to_template(fix,skeleton,template,scale,all_body)
 
     if interpolate:
         align = interpolate_3d_data(align,smoothing,ots,nts,window_length)
@@ -83,18 +84,17 @@ def get_flycentric(data, pixel_size=[5.86e-3,5.86e-3,5.86e-3]):
 def get_fix_coxae_pos(pos_3d_dict):
     extended_dict = {}
     for segment, landmarks in pos_3d_dict.items():
-        if 'leg' in segment:
-            extended_dict[segment] = {}
-            for landmark, pos in landmarks.items():
-                extended_dict[segment][landmark]={}
-                pos_t = pos.transpose()
-                if 'Coxa' in landmark:
-                    mean_x = np.mean(pos_t[0])
-                    mean_y = np.mean(pos_t[1])
-                    mean_z = np.mean(pos_t[2])
-                    extended_dict[segment][landmark]['fixed_pos']=[mean_x,mean_y,mean_z]
-                    
-                extended_dict[segment][landmark]['raw_pos']=pos
+        extended_dict[segment] = {}
+        for landmark, pos in landmarks.items():
+            extended_dict[segment][landmark]={}
+            pos_t = pos.transpose()
+            if 'Coxa' in landmark:
+                mean_x = np.mean(pos_t[0])
+                mean_y = np.mean(pos_t[1])
+                mean_z = np.mean(pos_t[2])
+                extended_dict[segment][landmark]['fixed_pos']=[mean_x,mean_y,mean_z]
+
+            extended_dict[segment][landmark]['raw_pos']=pos
                   
     return extended_dict
 
@@ -136,7 +136,16 @@ def align_prism_to_template(fixed_dict,template,scale):
     align_dict = calculate_fix_lengths(align_dict)
     return align_dict
 '''
-def align_3d_to_template(fixed_dict,skeleton,template,scale):
+
+def align_pos_to_template(fixed_dict, skeleton, template, scale, all_body):
+    fixed_dict_legs = {key:fixed_dict[key] for key in fixed_dict.keys() if 'leg' in key}
+    align_dict = align_legs(fixed_dict_legs, skeleton, template, scale)
+    if all_body:
+        align_dict = align_head(align_dict, fixed_dict, skeleton, template, scale)
+
+    return align_dict
+
+def get_deviation_angles(fixed_dict, skeleton):
     lm = fixed_dict['LM_leg']['Coxa']['fixed_pos']
     rm = fixed_dict['RM_leg']['Coxa']['fixed_pos']
     lh = fixed_dict['LH_leg']['Coxa']['fixed_pos']
@@ -149,9 +158,17 @@ def align_3d_to_template(fixed_dict,skeleton,template,scale):
         th_left = np.arctan2(lm[1]-lh[1],lm[0]-lh[0])
         th_right = np.arctan2(rm[1]-rh[1],rm[0]-rh[0])
         
-    th_align={'L': th_left, 'R':th_right} 
+    th_align={'L': th_left, 'R':th_right}
+
+    return th_align
+
+def align_legs(fixed_dict,skeleton,template,scale):
+     
     next_joints = {'Coxa':'Femur', 'Femur':'Tibia', 'Tibia':'Tarsus', 'Tarsus':'Claw'}
     prev_joints = {'Femur':'Coxa', 'Tibia':'Femur', 'Tarsus':'Tibia', 'Claw':'Tarsus'}
+
+    th_align = get_deviation_angles(fixed_dict,skeleton)
+    
     if scale:
         lengths = calculate_fix_lengths(fixed_dict, next_joints, metric='raw_pos')
     
@@ -188,10 +205,49 @@ def align_3d_to_template(fixed_dict,skeleton,template,scale):
     align_dict = calculate_fix_lengths(align_dict, next_joints)
     return align_dict
 
+def align_head(align_dict,fixed_dict,skeleton,template,scale):
+     
+    th_align = get_deviation_angles(fixed_dict,skeleton)
+    fixed_dict_head = {key:fixed_dict[key] for key in fixed_dict.keys() if 'Head' in key}
+    next_joints = {'LAntenna':'RAntenna','RAntenna':'LAntenna'}
+    if scale:
+        lengths = calculate_fix_lengths(fixed_dict_head, next_joints, metric='raw_pos')
+        template_length = template['LAntenna'][1]-template['RAntenna'][1]
+        mean_length = lengths['Head']['LAntenna']['mean_length']
+        scale_factor = template_length/mean_length
+    else:
+        scale_factor = 1
+
+    #if 'Neck' not in fixed_dict_head['Head'].keys():
+    #    neck_pos = ###Calculate virtual pos???
+    #else:
+    #    neck_pos = fixed_dict_head['Head']['Neck']['fixed_pos']###TODO
+        
+    for part, joints in fixed_dict_head.items():
+        align_dict[part]={}
+        for joint, data in joints.items():
+            align_dict[part][joint]={}
+                        
+            for metric, coords in data.items():
+                if '_pos' in metric:
+                    pos_zero = np.array(coords) - np.array(fixed_dict[joint[0]+'F_leg']['Coxa']['fixed_pos'])
+                    if skeleton == 'df3d':
+                        pos_zero_t = pos_zero.transpose()
+                        pos_zero = np.array([pos_zero_t[0],-pos_zero_t[1],pos_zero_t[2]]).transpose()
+                        rot_mat = R.from_euler('zyx', [0,th_align[joint[0]],np.pi/2])
+                    if skeleton == 'prism':
+                        rot_mat = R.from_euler('zyx', [th_align[joint[0]],0,0])
+                    rot_pos = rot_mat.apply(pos_zero)*scale_factor
+                    align_pos = rot_pos + template[joint]
+                    align_dict[part][joint][metric+'_aligned']=align_pos
+
+    #align_dict = calculate_fix_lengths(align_dict, next_joints)
+    return align_dict
+
 def calculate_fix_lengths(data, next_joints, metric = 'raw_pos_aligned', data_used=0.8):
-    for name, leg in data.items():
+    for name, body_part in data.items():
         lengths = []
-        for segment, body_part in leg.items():
+        for segment, joint in body_part.items():
             if segment != 'Claw':
                 dist = []                
                 #if 'Coxa' in segment:
@@ -205,16 +261,16 @@ def calculate_fix_lengths(data, next_joints, metric = 'raw_pos_aligned', data_us
                     
                 #if 'Tarsus' in segment:
                 #    next_segment = 'Claw'
-                ind = int(len(body_part[metric]) * (1-data_used)/2)
-                for i, point in enumerate(body_part[metric]):
+                ind = int(len(joint[metric]) * (1-data_used)/2)
+                for i, point in enumerate(joint[metric]):
                     a = point
                     b = data[name][next_joints[segment]][metric][i] 
                     dist.append(np.linalg.norm(a-b))
                 sort_dist = np.sort(dist)        
-                body_part['mean_length']=np.mean(sort_dist[ind:-ind])
+                joint['mean_length']=np.mean(sort_dist[ind:-ind])
                 lengths.append(np.mean(sort_dist[ind:-ind]))
             else:
-                body_part['total_length']=np.sum(lengths)
+                joint['total_length']=np.sum(lengths)
     return data
 
 #def align_data(exp_dict,skeleton='df3d'):
