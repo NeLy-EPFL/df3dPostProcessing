@@ -6,11 +6,11 @@ import os
 from scipy.spatial.transform import Rotation as R
 from sklearn.metrics import mean_squared_error
 from sklearn import svm
-from . import utils_angles
+from df3dPostProcessing.utils import utils_angles
 import pandas as pd
 from scipy import stats
 from statsmodels.stats import weightstats as stests
-from .utils_angles import calculate_forward_kinematics
+from df3dPostProcessing.utils.utils_angles import calculate_forward_kinematics
 from ikpy.chain import Chain 
 from ikpy.link import OriginLink, URDFLink
 from matplotlib.legend_handler import HandlerTuple

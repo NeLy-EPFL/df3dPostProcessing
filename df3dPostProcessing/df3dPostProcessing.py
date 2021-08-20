@@ -2,8 +2,8 @@ import numpy as np
 import os
 import pickle
 import scipy.signal
-from .utils.utils_alignment import align_3d
-from .utils.utils_angles import calculate_angles
+from df3dPostProcessing.utils.utils_alignment import align_3d
+from df3dPostProcessing.utils.utils_angles import calculate_angles
 #from .utils.utils_plots import *
 
 df3d_skeleton = ['RFCoxa',
@@ -212,7 +212,7 @@ class df3dPostProcess:
         self.data_2d_dict = load_data_to_dict(self.raw_data_2d, skeleton)
         self.aligned_model = {}
 
-    def align_to_template(self,scale=True,interpolate=False,smoothing=True,original_time_step= 0.01,new_time_step=0.001,window_length=29):
+    def align_to_template(self,scale=True,interpolate=False,smoothing=True,original_time_step= 0.01,new_time_step=0.001,window_length=11):
         self.aligned_model = align_3d(self.data_3d_dict,self.skeleton,self.template,scale,interpolate, smoothing, original_time_step, new_time_step, window_length)
 
         return self.aligned_model
@@ -260,7 +260,7 @@ class df3dPostProcess:
             data = np.load(exp,allow_pickle=True)
             if skeleton == 'prism':
                 data={'points3d':data}
-
+            #from IPython import embed; embed()
             if calculate_3d:
                 self.raw_data_3d = triangulate_2d(data, exp)
                 
@@ -269,7 +269,7 @@ class df3dPostProcess:
                     self.raw_data_cams[key] = vals
                 elif key == 'points3d':
                     if not calculate_3d:
-                        self.raw_data_3d = vals
+                        self.raw_data_3d = vals['points3d']
                 elif key == 'points2d':
                     self.raw_data_2d = vals
 
