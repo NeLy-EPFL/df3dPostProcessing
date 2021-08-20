@@ -2,6 +2,7 @@ import numpy as np
 import os
 import pickle
 import scipy.signal
+import itertools
 from df3dPostProcessing.utils.utils_alignment import align_3d
 from df3dPostProcessing.utils.utils_angles import calculate_angles
 #from .utils.utils_plots import *
@@ -153,7 +154,9 @@ template_nmf = {'RFCoxa':[0.35, -0.27, 0.400],
                 'LHFemur':[-0.215, 0.087, -0.272],
                 'LHTibia':[-0.215, 0.087, -1.108],
                 'LHTarsus':[-0.215, 0.087, -1.793],
-                'LHClaw':[-0.215, 0.087, -2.588]}
+                'LHClaw':[-0.215, 0.087, -2.588],
+                'RAntenna':[0.25, -0.068, 0.67],
+                'LAntenna':[0.25, 0.068, 0.67]}
 
 zero_pose_nmf = {'RF_leg':{'ThC_yaw':0,
                            'ThC_pitch':0,
@@ -199,7 +202,7 @@ zero_pose_nmf = {'RF_leg':{'ThC_yaw':0,
                            'TiTa_pitch':-np.pi}}
 
 class df3dPostProcess:
-    def __init__(self, exp_dir, multiple = False, file_name = '', skeleton='df3d', calculate_3d=False):
+    def __init__(self, exp_dir, multiple = False, file_name = '', skeleton='df3d', calculate_3d=False, correct_outliers=False):
         self.exp_dir = exp_dir
         self.raw_data_3d = np.array([])
         self.raw_data_2d = np.array([])
@@ -207,13 +210,13 @@ class df3dPostProcess:
         self.template = template_nmf
         self.zero_pose = zero_pose_nmf
         self.raw_data_cams = {}
-        self.load_data(exp_dir, calculate_3d, skeleton, multiple, file_name)
+        self.load_data(exp_dir, calculate_3d, skeleton, multiple, file_name, correct_outliers)
         self.data_3d_dict = load_data_to_dict(self.raw_data_3d, skeleton)
         self.data_2d_dict = load_data_to_dict(self.raw_data_2d, skeleton)
         self.aligned_model = {}
 
-    def align_to_template(self,scale=True,interpolate=False,smoothing=True,original_time_step= 0.01,new_time_step=0.001,window_length=11):
-        self.aligned_model = align_3d(self.data_3d_dict,self.skeleton,self.template,scale,interpolate, smoothing, original_time_step, new_time_step, window_length)
+    def align_to_template(self,scale=True,all_body=False,interpolate=False,smoothing=True,original_time_step= 0.01,new_time_step=0.001,window_length=29):
+        self.aligned_model = align_3d(self.data_3d_dict,self.skeleton,self.template,scale,all_body,interpolate, smoothing, original_time_step, new_time_step, window_length)
 
         return self.aligned_model
 
@@ -250,7 +253,7 @@ class df3dPostProcess:
         return velocities
 
     
-    def load_data(self, exp, calculate_3d, skeleton, multiple, file_name):
+    def load_data(self, exp, calculate_3d, skeleton, multiple, file_name, correct_outliers=False):
         if multiple:
             currentDirectory = os.getcwd()
             dataFile = os.path.join(currentDirectory,file_name)
@@ -262,7 +265,7 @@ class df3dPostProcess:
                 data={'points3d':data}
             #from IPython import embed; embed()
             if calculate_3d:
-                self.raw_data_3d = triangulate_2d(data, exp)
+                self.raw_data_3d = triangulate_2d(data, exp, correct_outliers)
                 
             for key, vals in data.items():
                 if not isinstance(key,str):
@@ -273,12 +276,13 @@ class df3dPostProcess:
                 elif key == 'points2d':
                     self.raw_data_2d = vals
 
-def triangulate_2d(data, exp_dir):
+def triangulate_2d(data, exp_dir, correct_outliers=False):
     img_folder = exp_dir[:exp_dir.find('df3d')]
     out_folder = exp_dir[:exp_dir.find('pose_result')]
     num_images = data['points3d'].shape[0]
-    
+
     from deepfly.CameraNetwork import CameraNetwork
+
     camNet = CameraNetwork(image_folder=img_folder, output_folder=out_folder, num_images=num_images)
 
     for cam_id in range(7): 
@@ -287,7 +291,106 @@ def triangulate_2d(data, exp_dir):
         camNet.cam_list[cam_id].set_tvec(data[cam_id]["tvec"]) 
     camNet.triangulate() 
 
+    if correct_outliers:
+        camNet = correct_outliers_legs(camNet)
+
     return camNet.points3d
+
+
+def correct_outliers_legs(camNet):
+    """ Corrects outlier keypoint estimations. """
+    from deepfly.signal_util import filter_batch
+    from deepfly.cv_util import triangulate_linear
+
+    start_indices = np.array([0, 1, 2, 3,
+                                5, 6, 7, 8,
+                                10, 11, 12, 13,
+                                19, 20, 21, 22,
+                                24, 25, 26, 27,
+                                29, 30, 31, 32,],
+                                dtype=np.int)
+    stop_indices = start_indices + 1
+    #pairs = np.vstack((start_indices, stop_indices))
+    lengths = np.linalg.norm(camNet.points3d[:, start_indices, :] - camNet.points3d[:, stop_indices, :], axis=2)
+    median_lengths = np.median(lengths, axis=0)
+    #length_outliers = (lengths > np.quantile(lengths, 0.99, axis=0)) | (lengths < np.quantile(lengths, 0.01, axis=0))
+    length_outliers = (lengths > median_lengths * 1.4) | (lengths < median_lengths * 0.4)
+
+    outlier_mask = np.zeros(camNet.points3d.shape, dtype=np.bool)
+    for i, mask_offset in enumerate([0, 5, 10, 19, 24, 29]):
+        claw_outliers = np.where(length_outliers[:, i * 4 + 3] & ~length_outliers[:, i * 4 + 2])[0]
+        tarsus_outliers = np.where(length_outliers[:, i * 4 + 3] & length_outliers[:, i * 4 + 2])[0]
+        tibia_outliers = np.where(length_outliers[:, i * 4 + 2] & length_outliers[:, i * 4 + 1])[0]
+        femur_outliers = np.where(length_outliers[:, i * 4 + 1] & length_outliers[:, i * 4 + 0])[0]
+
+        outlier_mask[femur_outliers, 1 + mask_offset] = True
+        outlier_mask[tibia_outliers, 2 + mask_offset] = True
+        outlier_mask[tarsus_outliers, 3 + mask_offset] = True
+        outlier_mask[claw_outliers, 4 + mask_offset] = True
+
+    outlier_image_ids = np.where(outlier_mask)[0]
+    outlier_joint_ids = np.where(outlier_mask)[1]
+    # print(outlier_image_ids)
+    # print(outlier_joint_ids)
+
+    # Camera order starts from right hind side to the left
+    cam_list = camNet.cid2cidread
+
+    def _triangulate_specific_cameras(camNet, cam_id_list,img_id, j_id):
+        cam_list_iter = list()
+        points2d_iter = list()
+        for cam in [camNet.cam_list[cam_idx] for cam_idx in cam_id_list]:
+            cam_list_iter.append(cam)
+            points2d_iter.append(cam[img_id, j_id, :])
+        return triangulate_linear(cam_list_iter, points2d_iter)
+
+    for img_id, joint_id in zip(outlier_image_ids, outlier_joint_ids):
+        reprojection_errors = list()
+        segment_length_diff = list()
+        points_using_2_cams = list()
+        # Select cameras based on which side the joint is on, joint < 19 is the right side
+        all_cam_ids = cam_list[:3] if joint_id < 19 else cam_list[-3:]
+
+        for subset_cam_ids in itertools.combinations(all_cam_ids, 2):
+            points3d_using_2_cams = _triangulate_specific_cameras(camNet, subset_cam_ids, img_id, joint_id)
+
+            new_diff = 0
+            median_index = np.where(stop_indices == joint_id)[0]
+            if len(median_index) > 0:
+                new_diff += np.linalg.norm(points3d_using_2_cams - camNet.points3d[img_id, joint_id - 1]) - median_lengths[median_index]
+            median_index = np.where(start_indices == joint_id)[0]
+            if len(median_index) > 0:
+                new_diff += np.linalg.norm(points3d_using_2_cams - camNet.points3d[img_id, joint_id + 1]) - median_lengths[median_index]
+            segment_length_diff.append(new_diff)
+
+            reprojection_error_function = lambda cam_id: camNet.cam_list[cam_id].project(points3d_using_2_cams) - camNet.cam_list[cam_id].points2d[img_id, joint_id]
+            reprojection_error = np.mean([reprojection_error_function(cam_id) for cam_id in subset_cam_ids])
+            reprojection_errors.append(reprojection_error)
+            points_using_2_cams.append(points3d_using_2_cams)
+
+        # Replace 3D points with best estimation from 2 cameras only
+        best_cam_tuple_index = np.argmin(segment_length_diff)
+
+        old_diff = 0
+        new_diff = 0
+        median_index = np.where(stop_indices == joint_id)[0]
+        if len(median_index) > 0:
+            #print(pairs[:, median_index], joint_id, joint_id - 1)
+            old_diff += np.linalg.norm(camNet.points3d[img_id, joint_id] - camNet.points3d[img_id, joint_id - 1]) - median_lengths[median_index]
+            new_diff += np.linalg.norm(points_using_2_cams[best_cam_tuple_index] - camNet.points3d[img_id, joint_id - 1]) - median_lengths[median_index]
+        median_index = np.where(start_indices == joint_id)[0]
+        if len(median_index) > 0:
+            #print(pairs[:, median_index], joint_id, joint_id + 1)
+            old_diff += np.linalg.norm(camNet.points3d[img_id, joint_id] - camNet.points3d[img_id, joint_id + 1]) - median_lengths[median_index]
+            new_diff += np.linalg.norm(points_using_2_cams[best_cam_tuple_index] - camNet.points3d[img_id, joint_id + 1]) - median_lengths[median_index]
+
+        if new_diff < old_diff:
+            #print("correcting", img_id, joint_id)
+            camNet.points3d[img_id, joint_id] = points_using_2_cams[best_cam_tuple_index]
+
+    camNet.points3d = filter_batch(camNet.points3d, freq=100)
+    return camNet
+
 
 def load_data_to_dict(data, skeleton):
     final_dict ={}
