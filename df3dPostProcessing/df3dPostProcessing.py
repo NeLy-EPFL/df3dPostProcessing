@@ -357,7 +357,7 @@ def correct_outliers(camNet):
     #print(np.min(lengths, axis=0))
     outlier_mask = np.zeros(camNet.points3d.shape, dtype=np.bool)
     for i, mask_offset in enumerate([0, 5, 10, 19, 24, 29]):
-        claw_outliers = np.where(length_outliers[:, i * 4 + 3] & ~length_outliers[:, i * 4 + 2])[0]
+        claw_outliers = np.where(length_outliers[:, i * 4 + 4] & ~length_outliers[:, i * 4 + 3])[0]
         tarsus_outliers = np.where(length_outliers[:, i * 4 + 3] & length_outliers[:, i * 4 + 2])[0]
         tibia_outliers = np.where(length_outliers[:, i * 4 + 2] & length_outliers[:, i * 4 + 1])[0]
         femur_outliers = np.where(length_outliers[:, i * 4 + 1] & length_outliers[:, i * 4 + 0])[0]
