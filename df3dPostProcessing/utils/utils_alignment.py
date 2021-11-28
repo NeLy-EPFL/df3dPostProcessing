@@ -6,7 +6,7 @@ from scipy.spatial.transform import Rotation as R
 from scipy.interpolate import pchip_interpolate
 
 def align_3d(pos_3d_dict,skeleton,template,scale,all_body,interpolate,smoothing,ots,nts,window_length):
-    if skeleton == 'prism':
+    if skeleton == 'prism' or skeleton == 'lp3d':
         pos_3d_dict = get_flycentric(pos_3d_dict)
     fix = get_fix_coxae_pos(pos_3d_dict)
     #align = align_3d_to_template(fix,skeleton,template,scale)
@@ -47,7 +47,7 @@ def interpolate_3d_data(data,smoothing,ots,nts,window_length):
 
         return interp_dict
 
-def get_flycentric(data, pixel_size=[5.86e-3,5.86e-3,5.86e-3]):
+def get_flycentric(data, pixel_size=[9.8e-3,9.8e-3,9.8e-3]):
     trans_dict = {}
     for segment, landmarks in data.items():
         trans_dict[segment] = {}
@@ -139,7 +139,10 @@ def align_prism_to_template(fixed_dict,template,scale):
 
 def align_pos_to_template(fixed_dict, skeleton, template, scale, all_body):
     fixed_dict_legs = {key:fixed_dict[key] for key in fixed_dict.keys() if 'leg' in key}
-    align_dict = align_legs(fixed_dict_legs, skeleton, template, scale)
+    if scale == 'global':
+        align_dict = align_legs_scale_global(fixed_dict_legs, skeleton, template)
+    else:
+        align_dict = align_legs(fixed_dict_legs, skeleton, template, scale)
     if all_body:
         align_dict = align_head(align_dict, fixed_dict, skeleton, template, scale)
 
@@ -154,7 +157,7 @@ def get_deviation_angles(fixed_dict, skeleton):
     if skeleton == 'df3d':
         th_left = np.arctan2(lm[2]-lh[2],lm[0]-lh[0])
         th_right = np.arctan2(rm[2]-rh[2],rm[0]-rh[0])
-    if skeleton == 'prism':
+    if skeleton == 'prism' or skeleton == 'lp3d':
         th_left = np.arctan2(lm[1]-lh[1],lm[0]-lh[0])
         th_right = np.arctan2(rm[1]-rh[1],rm[0]-rh[0])
         
@@ -163,6 +166,60 @@ def get_deviation_angles(fixed_dict, skeleton):
     return th_align
 
 def align_legs(fixed_dict,skeleton,template,scale):
+     
+    next_joints = {'Coxa':'Femur', 'Femur':'Tibia', 'Tibia':'Tarsus', 'Tarsus':'Claw'}
+    prev_joints = {'Femur':'Coxa', 'Tibia':'Femur', 'Tarsus':'Tibia', 'Claw':'Tarsus'}
+
+    th_align = get_deviation_angles(fixed_dict,skeleton)
+    
+    align_dict={}
+    for leg, joints in fixed_dict.items():
+        align_dict[leg]={}
+        for joint, data in joints.items():
+            align_dict[leg][joint]={}
+            for metric, coords in data.items():
+                if '_pos' in metric:
+                    pos_zero = np.array(coords) - np.array(fixed_dict[leg]['Coxa']['fixed_pos'])
+                    if skeleton == 'df3d':
+                        pos_zero_t = pos_zero.transpose()
+                        pos_zero = np.array([pos_zero_t[0],-pos_zero_t[1],pos_zero_t[2]]).transpose()
+                        rot_mat = R.from_euler('zyx', [0,th_align[leg[0]],np.pi/2])
+                    if skeleton == 'prism' or skeleton == 'lp3d':
+                        rot_mat = R.from_euler('zyx', [th_align[leg[0]],0,0])
+                    rot_pos = rot_mat.apply(pos_zero)
+                    align_pos = rot_pos + template[leg[:2]+'Coxa']
+                    align_dict[leg][joint][metric+'_aligned']=align_pos
+
+    if scale:
+        lengths = calculate_fix_lengths(align_dict, next_joints)
+        scaled_dict = align_dict.copy()
+        for leg, joints in align_dict.items():
+            for joint, data in joints.items():
+                if joint != 'Claw':
+                    template_len = template[leg[:2]+joint][2]-template[leg[:2]+next_joints[joint]][2]
+                    mean_len = lengths[leg][joint]['mean_length']
+                    scale_factor = template_len/mean_len
+                    data['scale_factor'] = scale_factor
+                    #print(leg, joint, template_len, mean_len, scale_factor)
+                    if joint == 'Coxa':
+                        metric = 'fixed_pos_aligned'
+                    else:
+                        metric = 'raw_pos_aligned'
+                    zero_coord = data[metric]
+                    pos_zero = joints[next_joints[joint]]['raw_pos_aligned']-zero_coord
+                    scaled_pos = pos_zero * scale_factor
+                    new_origin = scaled_dict[leg][joint][metric]
+                    scaled_dict[leg][next_joints[joint]]['raw_pos_aligned'] = scaled_pos + new_origin
+                else:
+                    template_len = template[leg[:2]+'Coxa'][2]-template[leg[:2]+joint][2]
+                    mean_len = lengths[leg][joint]['total_length']
+                    scale_factor = template_len/mean_len
+                    scaled_dict[leg][joint]['scale_factor'] = scale_factor
+        align_dict = scaled_dict.copy()
+    align_dict = calculate_fix_lengths(align_dict, next_joints)
+    return align_dict
+
+def align_legs_scale_global(fixed_dict,skeleton,template,scale=True):
      
     next_joints = {'Coxa':'Femur', 'Femur':'Tibia', 'Tibia':'Tarsus', 'Tarsus':'Claw'}
     prev_joints = {'Femur':'Coxa', 'Tibia':'Femur', 'Tarsus':'Tibia', 'Claw':'Tarsus'}
@@ -196,7 +253,7 @@ def align_legs(fixed_dict,skeleton,template,scale):
                         pos_zero_t = pos_zero.transpose()
                         pos_zero = np.array([pos_zero_t[0],-pos_zero_t[1],pos_zero_t[2]]).transpose()
                         rot_mat = R.from_euler('zyx', [0,th_align[leg[0]],np.pi/2])
-                    if skeleton == 'prism':
+                    if skeleton == 'prism' or skeleton == 'lp3d':
                         rot_mat = R.from_euler('zyx', [th_align[leg[0]],0,0])
                     rot_pos = rot_mat.apply(pos_zero)*scale_factor
                     align_pos = rot_pos + template[leg[:2]+'Coxa']
@@ -217,11 +274,6 @@ def align_head(align_dict,fixed_dict,skeleton,template,scale):
         scale_factor = template_length/mean_length
     else:
         scale_factor = 1
-
-    #if 'Neck' not in fixed_dict_head['Head'].keys():
-    #    neck_pos = ###Calculate virtual pos???
-    #else:
-    #    neck_pos = fixed_dict_head['Head']['Neck']['fixed_pos']###TODO
         
     for part, joints in fixed_dict_head.items():
         align_dict[part]={}
@@ -235,7 +287,7 @@ def align_head(align_dict,fixed_dict,skeleton,template,scale):
                         pos_zero_t = pos_zero.transpose()
                         pos_zero = np.array([pos_zero_t[0],-pos_zero_t[1],pos_zero_t[2]]).transpose()
                         rot_mat = R.from_euler('zyx', [0,th_align[joint[0]],np.pi/2])
-                    if skeleton == 'prism':
+                    if skeleton == 'prism' or skeleton == 'lp3d':
                         rot_mat = R.from_euler('zyx', [th_align[joint[0]],0,0])
                     rot_pos = rot_mat.apply(pos_zero)*scale_factor
                     align_pos = rot_pos + template[joint]

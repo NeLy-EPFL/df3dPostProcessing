@@ -754,13 +754,59 @@ def plot_fly_path(begin=0, end=0, sequence=True, save_imgs=False, experiment='',
                 cb.set_label('Time (s)')        
     plt.show()
 
-def draw_collisions_on_imgs(data_2d, experiment, sim_data='grooming', side='R', begin=0, end=0, save_imgs=False,pause=0,grfScalingFactor=1,scale=3,tot_time=9.0, time_step_data=0.001, time_step_img=0.01):
-    data={}
+def read_collision_forces(path_data):
+    """ Reads collision force's data obtained after running a simulation.
 
-    pkg_path = Path(pkgutil.get_loader("NeuroMechFly").get_filename())
-    sim_res_folder = os.path.join(pkg_path.parents[1],'scripts/KM/results')
+    Parameters
+    ----------
+    path_data: <str>
+        Path to simulation results.
+
+    Returns
+    ----------
+    collisions: <dict>
+        Collision forces for all segments in all legs.
+    """
+    collisions_data = os.path.join(path_data, 'physics', 'contact_normal_force.h5')
+    data = pd.read_hdf(collisions_data)
+
+    collisions = {}
+    x_force = {}
+    z_force = {}
+    check = []
+    for key in data.keys():
+        body_parts, force_axis = key.split('_')
+        if body_parts not in check and "-" in body_parts:
+            segment1, segment2 = body_parts.split('-')
+            check.append(body_parts)
+            components = [k for k in data.keys() if body_parts in k]
+            data_x = data[components[0]].values
+            data_y = data[components[1]].values
+            data_z = data[components[2]].values
+            res_force = np.linalg.norm([data_x, data_y, data_z], axis=0)
+            if segment1 not in collisions.keys():
+                collisions[segment1] = {}
+                x_force[segment1] = {}
+                z_force[segment1] = {}
+            if segment2 not in collisions.keys():
+                collisions[segment2] = {}
+                x_force[segment2] = {}
+                z_force[segment2] = {}
+                
+            collisions[segment1][segment2] = res_force
+            collisions[segment2][segment1] = res_force
+
+            x_force[segment1][segment2] = data_x
+            x_force[segment2][segment1] = data_x
+
+            z_force[segment1][segment2] = data_z
+            z_force[segment2][segment1] = data_z
+
+    return collisions, x_force, z_force
     
-    grf_data = sim_res_folder + '/selfCollisions_data_ball_' + sim_data + '.pkl'
+def draw_collisions_on_imgs(data_2d, experiment, path_data, sim_data='grooming', side='R', begin=0, end=0, save_imgs=False,pause=0,grfScalingFactor=1e6, scale=30,tot_time=9.0, time_step_data=0.0005, time_step_img=0.01):
+    data={}
+    length_data = 0
 
     colors = {'a':(0,0,139),'1':(0,0,255),'2':(71,99,255),'3':(92,92,205),'4':(128,128,240),'5':(122,160,255)}
 
@@ -775,26 +821,60 @@ def draw_collisions_on_imgs(data_2d, experiment, sim_data='grooming', side='R', 
     start_img = int(begin*steps_img)+1
     stop_img = int(end*steps_img)+2
     
-    with open(grf_data, 'rb') as fp:
-        data = pickle.load(fp)
-    all_collisions = {'LAntenna':[], 'LFTibia':[], 'LFTarsus1':[], 'LFTarsus2':[], 'LFTarsus3':[], 'LFTarsus4':[], 'LFTarsus5':[], 'RFTarsus5':[], 'RFTarsus4':[], 'RFTarsus3':[], 'RFTarsus2':[], 'RFTarsus1':[], 'RFTibia':[], 'RAntenna':[]}#, 'LEye':[], 'REye':[]}
-    forces = {}
-    angles = {}
-    for key, val in all_collisions.items():
-        if side in key and 'Antenna' not in key:
-            forces[key]=val
-            angles[key]=val
+    data, x_f, z_f = read_collision_forces(path_data)
+    
+    collisions = {'LAntenna':[], 'LFTibia':[], 'LFTarsus1':[], 'LFTarsus2':[], 'LFTarsus3':[], 'LFTarsus4':[], 'LFTarsus5':[], 'RFTarsus5':[], 'RFTarsus4':[], 'RFTarsus3':[], 'RFTarsus2':[], 'RFTarsus1':[], 'RFTibia':[], 'RAntenna':[]}#, 'LEye':[], 'REye':[]}
 
-    for segment, coll in data.items():
-        if segment in forces.keys():
-            for key, vals in coll.items():
-                #if key in all_collisions.keys():
-                forces[segment].append(vals.transpose()[0])                    
-                angles[segment].append(vals.transpose()[1])
+
+    x_force = {'LAntenna':[], 'LFTibia':[], 'LFTarsus1':[], 'LFTarsus2':[], 'LFTarsus3':[], 'LFTarsus4':[], 'LFTarsus5':[], 'RFTarsus5':[], 'RFTarsus4':[], 'RFTarsus3':[], 'RFTarsus2':[], 'RFTarsus1':[], 'RFTibia':[], 'RAntenna':[]}
+
+    z_force = {'LAntenna':[], 'LFTibia':[], 'LFTarsus1':[], 'LFTarsus2':[], 'LFTarsus3':[], 'LFTarsus4':[], 'LFTarsus5':[], 'RFTarsus5':[], 'RFTarsus4':[], 'RFTarsus3':[], 'RFTarsus2':[], 'RFTarsus1':[], 'RFTibia':[], 'RAntenna':[]}
+
+    #angle = {'LAntenna':[], 'LFTibia':[], 'LFTarsus1':[], 'LFTarsus2':[], 'LFTarsus3':[], 'LFTarsus4':[], 'LFTarsus5':[], 'RFTarsus5':[], 'RFTarsus4':[], 'RFTarsus3':[], 'RFTarsus2':[], 'RFTarsus1':[], 'RFTibia':[], 'RAntenna':[]}
+
+    for segment1 in collisions.keys():
+            seg_forces=[]
+            for segment2, force in data[segment1].items():
+                seg_forces.append(force)
+            sum_force = np.sum(np.array(seg_forces), axis=0)
+            segment_force = np.delete(sum_force, 0)
+            collisions[segment1].append(segment_force)
+            if length_data == 0:
+                length_data = len(segment_force)
+
+            seg_forces=[]
+            for segment2, force in x_f[segment1].items():
+                seg_forces.append(force)
+            sum_force_x = np.sum(np.array(seg_forces), axis=0)
+            segment_force_x = np.delete(sum_force_x, 0)
+            x_force[segment1].append(segment_force_x)
+
+            seg_forces=[]
+            for segment2, force in z_f[segment1].items():
+                seg_forces.append(force)
+            sum_force_z = np.sum(np.array(seg_forces), axis=0)
+            segment_force_z = np.delete(sum_force_z, 0)
+            z_force[segment1].append(segment_force_z)
+
+            #ang = np.arctan2(segment_force_z,segment_force_x)
+            #angle[segment1].append(ang)
+    
+    #for key, val in all_collisions.items():
+    #    if side in key and 'Antenna' not in key:
+    #        forces[key]=val
+    #        angles[key]=val
+
+    #for segment, coll in data.items():
+    #    if segment in forces.keys():
+    #        for key, vals in coll.items():
+    #            #if key in all_collisions.keys():
+    #            forces[segment].append(vals.transpose()[0])                    
+    #            angles[segment].append(vals.transpose()[1])
 
     raw_imgs=[]
     ind_folder = experiment.find('df3d')
     imgs_folder = experiment[:ind_folder-1]
+
     for frame in range(start_img,stop_img):
         if side=='R':
             cam_num = 1
@@ -805,91 +885,57 @@ def draw_collisions_on_imgs(data_2d, experiment, sim_data='grooming', side='R', 
         img = cv.imread(img_name)
         raw_imgs.append(img)
 
-    for i, (leg, force) in enumerate(forces.items()):
-        if side in leg:
-            sum_force = np.sum(np.array(force), axis = 0)
-            leg_force = np.delete(sum_force,0)
-            time = np.arange(0,len(leg_force),1)/100
-            stance_ind = np.where(leg_force>0)[0]
-            if stance_ind.size!=0:
-                stance_diff = np.diff(stance_ind)
-                stance_lim = np.where(stance_diff>1)[0]
-                stance=[stance_ind[0]-1]
-                for ind in stance_lim:
-                    stance.append(stance_ind[ind]+1)
-                    stance.append(stance_ind[ind+1]-1)
-                stance.append(stance_ind[-1])
-                start_gait_list = np.where(np.array(stance) >= start)[0]
-                if len(start_gait_list)>0:
-                    start_gait = start_gait_list[0]
-                else:
-                    start_gait = start            
-                stop_gait_list = np.where(np.array(stance) <= stop)[0]
-                if len(stop_gait_list)>0:
-                    stop_gait = stop_gait_list[-1]+1
-                else:
-                    stop_gait = start_gait
-                stance_plot = stance[start_gait:stop_gait]
-                if start_gait%2 != 0:
-                    stance_plot.insert(0,start)
-                if len(stance_plot)%2 != 0:
-                    stance_plot.append(stop)
+    for i, (leg, force) in enumerate(collisions.items()):
+        if side in leg and not 'Antenna' in leg:
+            stance_plot = get_stance_periods(force[0],start,stop)
+            bodyPart = leg[2:]
+            if 'Tarsus' in bodyPart:
+                bodyPart = 'Claw'
+                prev = 'Tarsus'
+                if '1' in leg[2:]:
+                    div = 1/5
+                elif '2' in leg[2:]:
+                    div = 2/6
+                elif '3' in leg[2:]:
+                    div = 3/6
+                elif '4' in leg[2:]:
+                    div = 4/6
+                elif '5' in leg[2:]:
+                    div = 5/6
+            if 'Tibia' in bodyPart:
+                bodyPart = 'Tarsus'
+                prev = 'Tarsus'
+                div = 1
+            for ind in range(0,len(stance_plot),2):
+                for frame in range(stance_plot[ind],stance_plot[ind+1],int(diff_steps)):
+                    cam_frame = int(frame/diff_steps)+1
+                    img_frame = int((frame-start)/diff_steps)
 
-                bodyPart = leg[2:]
-                if 'Tarsus' in bodyPart:
-                    bodyPart = 'Claw'
-                    prev = 'Tarsus'
-                    if '1' in leg[2:]:
-                        div = 1/5
-                    elif '2' in leg[2:]:
-                        div = 2/6
-                    elif '3' in leg[2:]:
-                        div = 3/6
-                    elif '4' in leg[2:]:
-                        div = 4/6
-                    elif '5' in leg[2:]:
-                        div = 5/6
-                if 'Tibia' in bodyPart:
-                    bodyPart = 'Tarsus'
-                    prev = 'Tarsus'
-                    div = 1
-                for ind in range(0,len(stance_plot),2):
-                    for frame in range(stance_plot[ind],stance_plot[ind+1],int(diff_steps)):
-                        cam_frame = int(frame/diff_steps)+1
-                        img_frame = int((frame-start)/diff_steps)
-                        
-                        x_base = data_2d[cam_num][side+'F_leg'][bodyPart][cam_frame][0]
-                        y_base = data_2d[cam_num][side+'F_leg'][bodyPart][cam_frame][1]
+                    x_base = data_2d[cam_num][side+'F_leg'][bodyPart][cam_frame][0]
+                    y_base = data_2d[cam_num][side+'F_leg'][bodyPart][cam_frame][1]
 
-                        x_prev = data_2d[cam_num][side+'F_leg'][prev][cam_frame][0]
-                        y_prev = data_2d[cam_num][side+'F_leg'][prev][cam_frame][1]
+                    x_prev = data_2d[cam_num][side+'F_leg'][prev][cam_frame][0]
+                    y_prev = data_2d[cam_num][side+'F_leg'][prev][cam_frame][1]
 
-                        x_px = int(x_prev + div*(x_base-x_prev))
-                        y_px = int(y_prev + div*(y_base-y_prev))
-                        
-                        start_pnt = [x_px, y_px]
-                        force_vals = np.array(forces[leg]).transpose()[frame+1]
-                        
-                        poi = np.where(force_vals>0)[0]
-                        if poi.size!=0:
-                            mean_angle = np.mean(np.array(angles[leg]).transpose()[frame+1][poi])
-                        else:
-                            mean_angle = 0
-                        #if leg == 'LF':
-                        #    print(frame,mean_angle*180/np.pi)
-                        
-                        force_x = leg_force[frame]*np.cos(mean_angle)*grfScalingFactor
-                        force_z = leg_force[frame]*np.sin(mean_angle)*grfScalingFactor
-                        h, w, c = raw_imgs[img_frame].shape
-                        end_pnt = [x_px+(force_x*h/(2*scale)), y_px-(force_z*h/(2*scale))]
-                        color = colors[leg[-1]]
-                        raw_imgs[img_frame] = draw_lines(raw_imgs[img_frame],start_pnt,end_pnt,color=color,thickness=3,arrowHead=True)
+                    x_px = int(x_prev + div*(x_base-x_prev))
+                    y_px = int(y_prev + div*(y_base-y_prev))
+
+                    start_pnt = [x_px, y_px]                    
+                    
+                    force_x = np.sum(x_force[leg][0][stance_plot[ind]:stance_plot[ind]+int(diff_steps)])*grfScalingFactor
+                    force_z = np.sum(z_force[leg][0][stance_plot[ind]:stance_plot[ind]+int(diff_steps)])*grfScalingFactor
+                    
+                    h, w, c = raw_imgs[img_frame].shape
+                    end_pnt = [x_px+(force_x*h/(2*scale)), y_px-(force_z*h/(2*scale))]
+                    
+                    color = colors[leg[-1]]
+                    raw_imgs[img_frame] = draw_lines(raw_imgs[img_frame],start_pnt,end_pnt,color=color,thickness=3,arrowHead=True)
                        
     for i, img in enumerate(raw_imgs):
         print('\rFrame: ' + str(i+start_img),end='')
         if save_imgs:
             file_name = experiment.split('/')[-1]
-            new_folder = 'results/'+file_name.replace('.pkl','/')+'grf_on_raw'
+            new_folder = 'results/'+file_name.replace('.pkl','/')+'collisions_on_raw'
             if not os.path.exists(new_folder):
                 os.makedirs(new_folder)
             name = new_folder + '/img_' + '{:06}'.format(i) + '.jpg'
@@ -899,14 +945,97 @@ def draw_collisions_on_imgs(data_2d, experiment, sim_data='grooming', side='R', 
             cv.imshow('img',img)
             cv.waitKey(pause)
     cv.destroyAllWindows()
-    
-def draw_grf_on_imgs(data_2d, experiment, sim_data='walking', side='R', begin=0, end=0, save_imgs=False,pause=0,grfScalingFactor=100,scale=3,tot_time=9.0, time_step_data=0.001, time_step_img=0.01):
-    data={}
 
-    pkg_path = Path(pkgutil.get_loader("NeuroMechFly").get_filename())
-    sim_res_folder = os.path.join(pkg_path.parents[1],'scripts/KM/results')
+def read_ground_contacts(path_data):
+    """ Reads ground contact's data obtained after running a simulation.
+
+    Parameters
+    ----------
+    path_data: <str>
+        Path to simulation results.
+
+    Returns
+    ----------
+    grf: <dict>
+        Ground reaction forces for all segments in all legs.
+    """
+    grf_data = os.path.join(path_data, 'physics', 'contact_normal_force.h5')
+    data = pd.read_hdf(grf_data)
+    grf = {}
+    x_force = {}
+    z_force = {}
+    check = []
+    for key, force in data.items():
+        leg, force_axis = key.split('_')
+        if leg not in check and "-" not in leg:
+            check.append(leg)
+            components = [k for k in data.keys() if leg in k and "-" not in k]
+            data_x = data[components[0]].values
+            data_y = data[components[1]].values
+            data_z = data[components[2]].values
+            res_force = np.linalg.norm([data_x, data_y, data_z], axis=0)
+            if leg[:2] not in grf.keys():
+                grf[leg[:2]] = []
+                x_force[leg[:2]] = []
+                z_force[leg[:2]] = []
+            grf[leg[:2]].append(res_force)
+            x_force[leg[:2]].append(data_x)
+            z_force[leg[:2]].append(data_z)
+
+    return grf, x_force, z_force
+
+def get_stance_periods(leg_force,start,stop):
+    """ Get stance periods from GRF data.
+
+    Parameters
+    ----------
+    leg_force: <np.array>
+        GRF data associated with a leg.
+    start: <float>
+        Starting time for checking stance periods.
+    stop: <float>
+        Stoping time for checking stance periods.
+
+    Returns
+    ----------
+    stance_plot: <list>
+        Indices indicating beginning and ending of stance periods.
+    """
+    stance_ind = np.where(leg_force > 0)[0]
+    if stance_ind.size != 0:
+        stance_diff = np.diff(stance_ind)
+        stance_lim = np.where(stance_diff > 1)[0]
+        stance = [stance_ind[0] - 1]
+        for ind in stance_lim:
+            stance.append(stance_ind[ind] + 1)
+            stance.append(stance_ind[ind + 1] - 1)
+        stance.append(stance_ind[-1])
+        start_gait_list = np.where(np.array(stance) >= start)[0]
+        if len(start_gait_list) > 0:
+            start_gait = start_gait_list[0]
+        else:
+            start_gait = start
+        stop_gait_list = np.where((np.array(stance) <= stop)&(np.array(stance) > start))[0]
+        if len(stop_gait_list) > 0:
+            stop_gait = stop_gait_list[-1] + 1
+        else:
+            stop_gait = start_gait
+        if start_gait != stop_gait:
+            stance_plot = stance[start_gait:stop_gait]
+            if start_gait % 2 != 0:
+                stance_plot.insert(0, start)
+            if len(stance_plot) % 2 != 0:
+                stance_plot.append(stop)
+        else:
+            stance_plot = [start, start]
+    else:
+        stance_plot = [start, start]
+
+    return stance_plot
     
-    grf_data = sim_res_folder + '/grf_data_ball_' + sim_data + '.pkl'
+def draw_grf_on_imgs(data_2d, experiment, path_data, sim_data='walking', side='R', begin=0, end=0, save_imgs=False,pause=0,grfScalingFactor=1e6,scale=15,tot_time=10.0, time_step_data=0.0005, time_step_img=0.01):
+    data={}
+    length_data = 0
 
     colors = {'RF_leg':(0,0,204),'RM_leg':(51,51,255),'RH_leg':(102,102,255),'LF_leg':(153,76,0),'LM_leg':(255,128,0),'LH_leg':(255,178,102)}
 
@@ -918,84 +1047,68 @@ def draw_grf_on_imgs(data_2d, experiment, sim_data='walking', side='R', begin=0,
     diff_steps = time_step_img/time_step_data
     start = int(begin*steps_data)
     stop = int(end*steps_data)
-    start_img = int(begin*steps_img)+1
-    stop_img = int(end*steps_img)+2
-    
-    with open(grf_data, 'rb') as fp:
-        data = pickle.load(fp)
+    start_img = int((begin+14.0)*steps_img)+1
+    stop_img = int((end+14.0)*steps_img)+2
+
     grf = {'LF':[],'LM':[],'LH':[],'RF':[],'RM':[],'RH':[]}
-    angle = {'LF':[],'LM':[],'LH':[],'RF':[],'RM':[],'RH':[]}
-    for leg, force in data.items():
-        grf[leg[:2]].append(force.transpose()[0])
-        angle[leg[:2]].append(force.transpose()[1])
+    #angle = {'LF':[],'LM':[],'LH':[],'RF':[],'RM':[],'RH':[]}
+    x_force = {'LF':[],'LM':[],'LH':[],'RF':[],'RM':[],'RH':[]}
+    z_force = {'LF':[],'LM':[],'LH':[],'RF':[],'RM':[],'RH':[]}
+    
+    data, x_f, z_f = read_ground_contacts(path_data)
+
+    for leg in grf.keys():
+        sum_force = np.sum(np.array(data[leg]), axis=0)
+        segment_force = np.delete(sum_force, 0)
+        grf[leg].append(segment_force)
+        if length_data == 0:
+            length_data = len(segment_force)
+
+        sum_force_x = np.sum(np.array(x_f[leg]), axis=0)
+        segment_force_x = np.delete(sum_force_x, 0)
+        x_force[leg].append(segment_force_x)
+        
+        sum_force_z = np.sum(np.array(z_f[leg]), axis=0)
+        segment_force_z = np.delete(sum_force_z, 0)
+        z_force[leg].append(segment_force_z)
+        
+        #ang = np.arctan2(segment_force_z,segment_force_x)
+        #angle[leg].append(ang)
     
     raw_imgs=[]
     ind_folder = experiment.find('df3d')
     imgs_folder = experiment[:ind_folder-1]
     for frame in range(start_img,stop_img):
         if side=='R':
-            cam_num = 1
+            cam_num_img = 5
+            cam_num_data = 1
         elif side=='L':
-            cam_num = 5
-        img_name = imgs_folder + '/camera_' +str(cam_num)+ '_img_' + '{:06}'.format(frame) + '.jpg'
-        #print(img_name)
+            cam_num_img = 1
+            cam_num_data = 5
+        img_name = imgs_folder + '/images/camera_' +str(cam_num_img)+ '_img_' + '{}'.format(frame) + '.jpg'
         img = cv.imread(img_name)
         raw_imgs.append(img)
     
     for i, (leg, force) in enumerate(grf.items()):
         if side in leg:
-            sum_force = np.sum(np.array(force), axis = 0)
-            leg_force = np.delete(sum_force,0)
-            #time = np.arange(0,len(leg_force),1)/100
-            stance_ind = np.where(leg_force>0)[0]
-            if stance_ind.size!=0:
-                stance_diff = np.diff(stance_ind)
-                stance_lim = np.where(stance_diff>1)[0]
-                stance=[stance_ind[0]-1]
-                for ind in stance_lim:
-                    stance.append(stance_ind[ind]+1)
-                    stance.append(stance_ind[ind+1]-1)
-                stance.append(stance_ind[-1])
-                start_gait_list = np.where(np.array(stance) >= start)[0]
-                if len(start_gait_list)>0:
-                    start_gait = start_gait_list[0]
-                else:
-                    start_gait = start            
-                stop_gait_list = np.where(np.array(stance) <= stop)[0]
-                if len(stop_gait_list)>0:
-                    stop_gait = stop_gait_list[-1]+1
-                else:
-                    stop_gait = start_gait
-                stance_plot = stance[start_gait:stop_gait]
-                if start_gait%2 != 0:
-                    stance_plot.insert(0,start)
-                if len(stance_plot)%2 != 0:
-                    stance_plot.append(stop)
-
-                for ind in range(0,len(stance_plot),2):
-                    for frame in range(stance_plot[ind],stance_plot[ind+1],int(diff_steps)):
-                        cam_frame = int(frame/diff_steps)+1
-                        img_frame = int((frame-start)/diff_steps)
+            stance_plot = get_stance_periods(force[0],start,stop)
+            for ind in range(0,len(stance_plot),2):
+                for frame in range(stance_plot[ind],stance_plot[ind+1],int(diff_steps)):
+                    cam_frame = int(frame/diff_steps)+1
+                    img_frame = int((frame-start)/diff_steps)
                         
-                        x_px = int(data_2d[cam_num][leg+'_leg']['Claw'][cam_frame][0])
-                        y_px = int(data_2d[cam_num][leg+'_leg']['Claw'][cam_frame][1])
-                        start_pnt = [x_px, y_px]
-                        #np.array(grf['LF']).transpose()[i+start+1]
-                        force_vals = np.array(grf[leg]).transpose()[frame+1]
-                        poi = np.where(force_vals>0)[0]
-                        if poi.size!=0:
-                            mean_angle = np.mean(np.array(angle[leg]).transpose()[frame+1][poi])
-                        else:
-                            mean_angle = 0
-                        #if leg == 'LF':
-                        #    print(frame,mean_angle*180/np.pi)
-                        
-                        force_x = leg_force[frame]*np.cos(mean_angle)*grfScalingFactor
-                        force_z = leg_force[frame]*np.sin(mean_angle)*grfScalingFactor
-                        h, w, c = raw_imgs[img_frame].shape
-                        end_pnt = [x_px+(force_x*h/(2*scale)), y_px-(force_z*h/(2*scale))]
-                        color = colors[leg+'_leg']
-                        raw_imgs[img_frame] = draw_lines(raw_imgs[img_frame],start_pnt,end_pnt,color=color,thickness=3,arrowHead=True)
+                    x_px = int(data_2d[cam_num_data][leg+'_leg']['Claw'][cam_frame][0])
+                    y_px = int(data_2d[cam_num_data][leg+'_leg']['Claw'][cam_frame][1])
+                    start_pnt = [x_px, y_px]
+                    #np.array(grf['LF']).transpose()[i+start+1]
+                    
+                    force_x = x_force[leg][0][frame]*grfScalingFactor
+                    force_z = z_force[leg][0][frame]*grfScalingFactor
+                    h, w, c = raw_imgs[img_frame].shape
+                    end_pnt = [x_px+(force_x*h/(2*scale)), y_px-(force_z*h/(2*scale))]
+                    
+                    color = colors[leg+'_leg']
+                    raw_imgs[img_frame] = draw_lines(raw_imgs[img_frame],start_pnt,end_pnt,color=color,thickness=3,arrowHead=True)
     
     for i, img in enumerate(raw_imgs):
         print('\rFrame: ' + str(i+start_img),end='')
@@ -1083,15 +1196,15 @@ def draw_legs_from_3d(data,exp_dir,data_2d,side='L',dir_name='traking_2d_from_3d
         cv.waitKey(pause)
     cv.destroyAllWindows()
 
-def draw_legs_from_2d(cams_info,data_2d,exp_dir,side='L',begin=0,end=0,saveimgs = False,pause=0,show_joints=True,dir_name='legsJoints'):
+def draw_legs_from_2d(cams_info,data_2d,exp_dir, imgs_folder='', side='R',begin=0,end=0,saveimgs = False,pause=0,show_joints=True,dir_name='legsJoints'):
     
     for key, info in cams_info.items():
         r = R.from_dcm(info['R']) 
         th = r.as_euler('zyx', degrees=True)[1]
-        if 90-th<15 and side=='R':
+        if 90-th<15 and side=='L':
             data = data_2d[key-1]
             cam_id = key-1 
-        elif 90-th>165 and side=='L':
+        elif 90-th>165 and side=='R':
             data = data_2d[key-1]
             cam_id = key-1
         #elif abs(th)+1 < 10:
@@ -1102,10 +1215,14 @@ def draw_legs_from_2d(cams_info,data_2d,exp_dir,side='L',begin=0,end=0,saveimgs 
     
     if end == 0:
         end = len(data['LF_leg']['Coxa'])
-    
-    for frame in range(begin,end):
+        
+    if imgs_folder == '':
         df3d_dir = exp_dir.find('df3d')
         folder = exp_dir[:df3d_dir]
+    else:
+        folder = os.path.join(imgs_folder)
+    
+    for frame in range(begin,end):
         img_name = folder + 'camera_' + str(cam_id) + '_img_' + '{:06}'.format(frame) + '.jpg'
         img = cv.imread(img_name)
         for leg, body_parts in data.items():
@@ -1400,7 +1517,7 @@ def plot_legs_from_angles(angles,data_dict,exp_dir,begin=0,end=0,plane='xz',save
         view_2d = plt.figure()
     
     if end == 0:
-        end = len(angles['RF_leg']['yaw'])
+        end = len(angles['RF_leg']['ThC_yaw'])
 
     order = ['LH_leg','LM_leg','LF_leg','RH_leg','RM_leg','RF_leg']
     angles_rev = {leg:angles[leg] for leg in order}
@@ -1598,11 +1715,116 @@ def calculate_svm_from_angles(angles, diff,align):
 
     plot_heatmap(mat,list(angles.keys()),'RMSE')
 
-def plot_error(errors_dict,begin=0,end=0,name='filename.png',dpi=300,split=False,save=False,BL=2.88):
+def plot_error(
+    errors_dict,
+    path_results='',
+    split = True,
+    BL = 2.88,
+    begin = 0,
+    end = 0,
+    time_step = 0.01,
+    joint='all',
+    save_results=False
+    ):
+
+    """ Plots errors measured from kinematic replay using different DoFs.
+    
+    Parameters
+    ----------
+    errors_dict: <dict>
+        Errors for different DoF's combinations.
+    path_results: <str>
+        Path to save results.
+    split: <bool>
+        Plotting legs split in rows if True.
+    BL: <float>
+        Body length in millimeters.
+    begin: <float>
+        Starting time for initiating the analysis.
+    end: <float>
+        Stoping time for finishing the analysis. If 0.0, all data is plotted.
+    time_step: <float>
+        Data time step.
+    joint: <str>
+        Joint to plot, it can be: 'all', 'CTr', 'FTi', 'TiTa',or 'Claw'
+    """ 
+
     legs = list(errors_dict.keys())
     angles = list(errors_dict[legs[0]].keys())
     df_errors = pd.DataFrame()
+    
+    joint_id = {'all': 0, 'CTr': 1, 'FTi': 2, 'TiTa': 3, 'Claw': 4}
+    
+    colors = [(204/255,0,0),(1,51/255,51/255),(1,102/255,102/255),(0,76/255,153/255),(0,0.5,1),(102/255,178/255,1)]
 
+    if end == 0:
+        end = len(errors_dict[legs[0]][angles[0]]['min_error']) * time_step
+
+    steps = 1 / time_step
+    start = int(begin * steps)
+    stop = int(end * steps)
+        
+    for leg in legs:
+        for angle in angles:
+            vals = []
+            for err in errors_dict[leg][angle]['min_error'][start:stop]:
+                mae = err[joint_id[joint]]/(len(err)-1)
+                norm_error = mae/BL*100
+                vals.append(norm_error)
+
+            df_vals = pd.DataFrame(vals,columns=['norm_error'])
+            df_vals['leg'] = leg
+            df_vals['angle'] = angle
+
+            df_errors = df_errors.append(df_vals, ignore_index = True)
+    mean_vals=[]
+  
+    data = [df_errors.loc[ids, 'norm_error'].values for ids in df_errors.groupby('angle').groups.values()]
+    stats.kruskal(*data)
+    ph=sp.posthoc_conover(df_errors, val_col='norm_error', group_col='angle', p_adjust = 'holm', sort=False)
+    ph_noDiff = ph.where(ph>0.001)
+    if save_results:
+        ph.to_csv(path_results+'/p-values_comparison_dofs.csv')
+    else:
+        print(ph_noDiff)
+        print(ph)
+        
+    
+    figure = plt.figure()
+    ax = sns.violinplot(x='angle', y='norm_error', data=df_errors, color="0.8", cut=0, inner='quartiles')
+    for violin, alpha in zip(ax.collections[::1], [0.7]*len(angles)):
+        violin.set_alpha(alpha)
+    ax = sns.stripplot(x='angle', y='norm_error', hue='leg', data=df_errors, dodge=split, jitter=True, zorder=0, size=3)
+    #ax = sns.swarmplot(x='angle', y='norm_error', hue='leg', data=df_errors, zorder=0, size=3)
+    handles, labels = ax.get_legend_handles_labels()
+    if split:
+        ax.legend(handles[len(angles)*len(legs):], labels[len(angles)*len(legs):],loc='upper right', bbox_to_anchor=(1.12, 1))
+    else:
+        ax.legend(handles[len(angles):], labels[len(angles):],loc='upper right', bbox_to_anchor=(1.12, 1))
+    
+    #plt.legend(loc='upper right', bbox_to_anchor=(1.12, 1))
+    plt.title('Comparison adding extra DoFs')  
+    plt.xlabel("")
+    plt.ylabel("MAE (% of body length)") 
+    plt.show()
+
+    if save_results:
+        fig_name = f"{path_results}/errors_comparison.png"
+        fig = plt.gcf()  
+        w_img = int(len(angles)*1.5)
+        h_img = int(w_img*3/4)
+        fig.set_size_inches(w_img, h_img)
+        fig.savefig(fig_name)
+
+    
+
+def plot_error_old(errors_dict,begin=0,end=0,name='filename.png',dpi=300,split=False,save=False,BL=2.88,joint='all'):
+    legs = list(errors_dict.keys())
+    angles = list(errors_dict[legs[0]].keys())
+    df_errors = pd.DataFrame()
+    
+    joint_id = {'all': 0, 'CTr': 1, 'FTi': 2, 'TiTa': 3, 'Claw': 4}
+    
     colors = [(204/255,0,0),(1,51/255,51/255),(1,102/255,102/255),(0,76/255,153/255),(0,0.5,1),(102/255,178/255,1)]
 
     if end == 0:
@@ -1612,7 +1834,7 @@ def plot_error(errors_dict,begin=0,end=0,name='filename.png',dpi=300,split=False
         for angle in angles:
             vals = []
             for err in errors_dict[leg][angle]['min_error'][begin:end]:
-                mae = err[0]/(len(err)-1)
+                mae = err[joint_id[joint]]/(len(err)-1)
                 norm_error = mae/BL*100
                 vals.append(norm_error)
 
@@ -1623,17 +1845,17 @@ def plot_error(errors_dict,begin=0,end=0,name='filename.png',dpi=300,split=False
             df_errors = df_errors.append(df_vals, ignore_index = True)
     mean_vals=[]
 
-    data = [e.loc[ids, 'norm_error'].values for ids in e.groupby('angle').groups.values()]
-    stats.kruskal(*data)
-    ph=sp.posthoc_conover(e, val_col='norm_error', group_col='angle', p_adjust = 'holm')
-    ph.where(ph>0.01)
+    #data = [e.loc[ids, 'norm_error'].values for ids in e.groupby('angle').groups.values()]
+    #stats.kruskal(*data)
+    #ph=sp.posthoc_conover(e, val_col='norm_error', group_col='angle', p_adjust = 'holm')
+    #ph.where(ph>0.01)
     #stats.kruskal()
     
-    '''
+    
     for angle1 in angles:
         x1 = df_errors['norm_error'].loc[df_errors['angle']==angle1]
         #mean_vals.append(np.mean(x1))
-        #print(angle1 + ' mean/std = ' + str(np.mean(x1)) + ' /+- ' + str(np.std(x1)))
+        print(angle1 + ' mean/std = ' + str(np.mean(x1)) + ' /+- ' + str(np.std(x1)))
         for angle2 in angles[angles.index(angle1)+1:]:
         #if angle != 'base':            
             x2 = df_errors['norm_error'].loc[df_errors['angle']==angle2]
@@ -1658,16 +1880,16 @@ def plot_error(errors_dict,begin=0,end=0,name='filename.png',dpi=300,split=False
     #ax.set_yscale('log')
     #ax.set_ylim(0,6)
     #plt.plot(np.arange(len(mean_vals)), mean_vals, 'kP', markersize=10)
-    plt.title('Comparison adding an extra DOF')
+    plt.title(f'Comparison adding an extra DOF: {joint}')
     
     figure = plt.gcf()  # get current figure
     w_img = int(len(angles)*1.5)
     h_img = int(w_img*3/4)
     figure.set_size_inches(w_img, h_img) # set figure's size manually to your full screen (32x18)
-    if save:
+    if save_results:
         plt.savefig(name, dpi=dpi,bbox_inches='tight')
     plt.show()
-    '''
+    
     
     return df_errors
 
@@ -1676,9 +1898,9 @@ def calculate_inverse_kinematics(data_dict, init_angles={},roll_tr=False):
     
     for name, leg in data_dict.items():
         if roll_tr:
-            angles_ik[name]={'roll':[],'pitch':[],'yaw':[],'th_fe':[],'roll_tr':[],'th_ti':[],'th_ta':[]}
+            angles_ik[name]={'ThC_roll':[],'ThC_pitch':[],'ThC_yaw':[],'CTr_pitch':[],'CTr_roll':[],'FTi_pitch':[],'TiTa_pitch':[]}
         else:
-            angles_ik[name]={'roll':[],'pitch':[],'yaw':[],'th_fe':[],'th_ti':[],'th_ta':[]}
+            angles_ik[name]={'ThC_roll':[],'ThC_pitch':[],'ThC_yaw':[],'CTr_pitch':[],'FTi_pitch':[],'TiTa_pitch':[]}
         l_coxa = leg['Coxa']['mean_length']
         l_femur = leg['Femur']['mean_length']
         l_tibia = leg['Tibia']['mean_length']
@@ -1700,17 +1922,17 @@ def calculate_inverse_kinematics(data_dict, init_angles={},roll_tr=False):
             print('\r'+name+' frame: '+str(i),end='')
             pos_norm = pos - coxa_pos
             angles = leg_chain.inverse_kinematics(pos_norm,initial_position=init_pos)
-            angles_ik[name]['roll'].append(angles[1])
-            angles_ik[name]['pitch'].append(angles[2])
-            angles_ik[name]['yaw'].append(angles[3])
-            angles_ik[name]['th_fe'].append(angles[4])
+            angles_ik[name]['ThC_roll'].append(angles[1])
+            angles_ik[name]['ThC_pitch'].append(angles[2])
+            angles_ik[name]['ThC_yaw'].append(angles[3])
+            angles_ik[name]['CTr_pitch'].append(angles[4])
             if roll_tr:
-                angles_ik[name]['roll_tr'].append(angles[5])
-                angles_ik[name]['th_ti'].append(angles[6])
-                angles_ik[name]['th_ta'].append(angles[7])
+                angles_ik[name]['CTr_roll'].append(angles[5])
+                angles_ik[name]['FTi_pitch'].append(angles[6])
+                angles_ik[name]['TiTa_pitch'].append(angles[7])
             else:
-                angles_ik[name]['th_ti'].append(angles[5])
-                angles_ik[name]['th_ta'].append(angles[6])
+                angles_ik[name]['FTi_pitch'].append(angles[5])
+                angles_ik[name]['TiTa_pitch'].append(angles[6])
 
     return angles_ik
 
@@ -1719,43 +1941,43 @@ def create_kinematic_chain(name,l_co,l_fe,l_ti,l_ta,roll_tr = False):
         leg_chain = Chain(name=name, links=[ 
         OriginLink(), 
         URDFLink( 
-          name="CoxaRoll", 
+          name="ThC_roll", 
           translation_vector=[0, 0, 0], 
           orientation=[0, 0, 0], 
           rotation=[0, 0, 1], 
         ), 
         URDFLink( 
-          name="CoxaPitch", 
+          name="ThC_pitch", 
           translation_vector=[0, 0, 0], 
           orientation=[0, 0, 0], 
           rotation=[0, 1, 0], 
         ), 
         URDFLink(  
-          name="CoxaYaw",  
+          name="ThC_yaw",  
           translation_vector=[0, 0, 0],  
           orientation=[0, 0, 0],  
           rotation=[1, 0, 0],  
         ), 
         URDFLink(  
-          name="th_fe",  
+          name="CTr_pitch",  
           translation_vector=[0, 0, -l_co],  
           orientation=[0, 0, 0],  
           rotation=[0, 1, 0],  
         ),
         URDFLink(  
-          name="roll_tr",  
+          name="CTr_roll",  
           translation_vector=[0, 0, 0],  
           orientation=[0, 0, 0],  
           rotation=[1, 0, 0],  
         ),
         URDFLink(  
-          name="th_ti",  
+          name="FTi_pitch",  
           translation_vector=[0, 0, -l_fe],  
           orientation=[0, 0, 0],  
           rotation=[0, 1, 0],  
         ), 
         URDFLink( 
-          name="th_ta", 
+          name="TiTa_pitch", 
           translation_vector=[0, 0, -l_ti], 
           orientation=[0, 0, 0], 
           rotation=[0, 1, 0], 
@@ -1771,37 +1993,37 @@ def create_kinematic_chain(name,l_co,l_fe,l_ti,l_ta,roll_tr = False):
         leg_chain = Chain(name=name, links=[ 
         OriginLink(), 
         URDFLink( 
-          name="CoxaRoll", 
+          name="ThC_roll", 
           translation_vector=[0, 0, 0], 
           orientation=[0, 0, 0], 
           rotation=[0, 0, 1], 
         ), 
         URDFLink( 
-          name="CoxaPitch", 
+          name="ThC_pitch", 
           translation_vector=[0, 0, 0], 
           orientation=[0, 0, 0], 
           rotation=[0, 1, 0], 
         ), 
         URDFLink(  
-          name="CoxaYaw",  
+          name="ThC_yaw",  
           translation_vector=[0, 0, 0],  
           orientation=[0, 0, 0],  
           rotation=[1, 0, 0],  
         ), 
         URDFLink(  
-          name="th_fe",  
+          name="CTr_pitch",  
           translation_vector=[0, 0, -l_co],  
           orientation=[0, 0, 0],  
           rotation=[0, 1, 0],  
         ),
         URDFLink(  
-          name="th_ti",  
+          name="FTi_pitch",  
           translation_vector=[0, 0, -l_fe],  
           orientation=[0, 0, 0],  
           rotation=[0, 1, 0],  
         ), 
         URDFLink( 
-          name="th_ta", 
+          name="TiTa_pitch", 
           translation_vector=[0, 0, -l_ti], 
           orientation=[0, 0, 0], 
           rotation=[0, 1, 0], 
@@ -1826,9 +2048,9 @@ def fk_from_ik(leg, name, data_dict, frame, roll_tr = False):
     leg_chain = create_kinematic_chain(name,l_coxa,l_femur,l_tibia,l_tarsus,roll_tr)
     
     if roll_tr:
-        vect = [0,leg['roll'][frame],leg['pitch'][frame],leg['yaw'][frame],leg['th_fe'][frame],leg['roll_tr'][frame],leg['th_ti'][frame],leg['th_ta'][frame],0]
+        vect = [0,leg['ThC_roll'][frame],leg['ThC_pitch'][frame],leg['ThC_yaw'][frame],leg['CTr_pitch'][frame],leg['CTr_roll_tr'][frame],leg['FTi_pitch'][frame],leg['TiTa_pitch'][frame],0]
     else:
-        vect = [0,leg['roll'][frame],leg['pitch'][frame],leg['yaw'][frame],leg['th_fe'][frame],leg['th_ti'][frame],leg['th_ta'][frame],0]
+        vect = [0,leg['ThC_roll'][frame],leg['ThC_pitch'][frame],leg['ThC_yaw'][frame],leg['CTr_pitch'][frame],leg['FTi_pitch'][frame],leg['TiTa_pitch'][frame],0]
 
     pred = leg_chain.forward_kinematics(vect,full_kinematics=True)
 
@@ -1855,7 +2077,7 @@ def calculate_min_error(angles,data_dict,begin=0,end=0,extraDOF = ['base'],legs_
     errors_dict = {}
     
     if end == 0:
-        end = len(angles['LF_leg']['yaw'])
+        end = len(angles['LF_leg']['ThC_yaw'])
 
     for frame in range(begin, end):
         print('\rFrame: '+str(frame),end='')
@@ -1893,9 +2115,9 @@ def calculate_min_error(angles,data_dict,begin=0,end=0,extraDOF = ['base'],legs_
                     d_tot = d_fe + d_ti + d_ta + d_claw
                            
                     errors_dict[name][key]['min_error'].append([d_tot,d_fe,d_ti,d_ta,d_claw])
-                elif key == 'base_rollTr':
+                elif key == 'base_CTr_roll':
                     #pos_3d = calculate_forward_kinematics(name, frame, leg, data_dict)
-                    pos_3d = calculate_forward_kinematics(name, frame, leg, data_dict,extraDOF={'roll_tr':angles})
+                    pos_3d = calculate_forward_kinematics(name, frame, leg, data_dict,extraDOF={'CTr_roll':angles})
 
                     d_fe = np.linalg.norm(pos_3d[1]-real_pos_femur)
                     d_ti = np.linalg.norm(pos_3d[2]-real_pos_tibia) 

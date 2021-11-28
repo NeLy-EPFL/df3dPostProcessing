@@ -2,8 +2,10 @@ import numpy as np
 import os
 import pickle
 import scipy.signal
+from pathlib import Path
 from .utils.utils_alignment import align_3d
 from .utils.utils_angles import calculate_angles
+from .utils.utils_ball_info import ball_size_and_pos
 #from .utils.utils_plots import *
 
 df3d_skeleton = ['RFCoxa',
@@ -45,7 +47,7 @@ df3d_skeleton = ['RFCoxa',
                  'LStripe2',
                  'LStripe3']
 
-prism_skeleton_AG = ['LFCoxa',
+prism_skeleton_LP3D = ['LFCoxa',
                   'LFFemur',
                   'LFTibia',
                   'LFTarsus',
@@ -214,7 +216,7 @@ class df3dPostProcess:
         self.data_2d_dict = load_data_to_dict(self.raw_data_2d, skeleton)
         self.aligned_model = {}
 
-    def align_to_template(self,scale=True,all_body=False,interpolate=False,smoothing=True,original_time_step= 0.01,new_time_step=0.001,window_length=29):
+    def align_to_template(self,scale='local',all_body=False,interpolate=False,smoothing=True,original_time_step= 0.01,new_time_step=0.001,window_length=29):
         self.aligned_model = align_3d(self.data_3d_dict,self.skeleton,self.template,scale,all_body,interpolate, smoothing, original_time_step, new_time_step, window_length)
 
         return self.aligned_model
@@ -231,7 +233,15 @@ class df3dPostProcess:
                     leg_angles[leg][angle] = list(np.array(vals) + zero_pose[leg][angle])
                 
         if save_angles:
-            path = self.exp_dir.replace('pose_result','joint_angles')
+            path = 'joint_angles.pkl'
+            if self.skeleton == 'df3d':
+                path = self.exp_dir.replace('pose_result','joint_angles')
+            if self.skeleton == 'prism' or self.skeleton == 'lp3d':
+                folders = self.exp_dir.split('/')
+                parent = self.exp_dir[:self.exp_dir.find(folders[-1])]
+                path = os.path.join(parent,f"joint_angles__{folders[-1]}")
+                path = path.replace(".npy",".pkl")
+                
             with open(path, 'wb') as f:
                 pickle.dump(leg_angles, f)
         return leg_angles
@@ -245,12 +255,36 @@ class df3dPostProcess:
                 velocities[leg][th]=vel
 
         if save_velocities:
-            path = self.exp_dir.replace('pose_result','joint_velocities')
+            path = 'joint_velocities.pkl'
+            if self.skeleton == 'df3d':
+                path = self.exp_dir.replace('pose_result','joint_velocities')
+            if self.skeleton == 'prism' or self.skeleton == 'lp3d':
+                folders = self.exp_dir.split('/')
+                parent = self.exp_dir[:self.exp_dir.find(folders[-1])]
+                path = os.path.join(parent,f"joint_velocities__{folders[-1]}")
+                path = path.replace(".npy",".pkl")
+                
             with open(path, 'wb') as f:
                 pickle.dump(velocities, f)
             
         return velocities
 
+    def get_treadmill_info(self, path=None, save_ball_info = False, show_detection=False):
+        if not path:
+            data_path = self.exp_dir
+        else:
+            data_path = path
+        
+        ball_radius, ball_pos = ball_size_and_pos(data_path, show_detection)
+
+        ball_info = {'radius':ball_radius, 'position':ball_pos}
+
+        if save_ball_info:
+            path = self.exp_dir.replace('pose_result','treadmill_info')
+            with open(path, 'wb') as f:
+                pickle.dump(ball_info, f)
+
+        return ball_info
     
     def load_data(self, exp, calculate_3d, skeleton, multiple, file_name):
         if multiple:
@@ -260,16 +294,15 @@ class df3dPostProcess:
             self.raw_data_3d  = data[exp]
         else:
             data = np.load(exp,allow_pickle=True)
-            if skeleton == 'prism':
-                data={'points3d':data}
-
+            if skeleton == 'prism' or skeleton == 'lp3d':
+                data={'points3d_wo_procrustes':data}
             if calculate_3d:
                 self.raw_data_3d = triangulate_2d(data, exp)
                 
             for key, vals in data.items():
                 if not isinstance(key,str):
                     self.raw_data_cams[key] = vals
-                elif key == 'points3d':
+                elif key == 'points3d_wo_procrustes':
                     if not calculate_3d:
                         self.raw_data_3d = vals
                 elif key == 'points2d':
@@ -306,7 +339,9 @@ def load_data_to_dict(data, skeleton):
         tracked_joints = prism_skeleton
     elif skeleton == 'df3d':
         tracked_joints = df3d_skeleton
-        
+    elif skeleton == 'lp3d':
+        tracked_joints = prism_skeleton_LP3D
+   
     if body_parts != len(tracked_joints):
         raise Exception("Check tracked joints definition")
 

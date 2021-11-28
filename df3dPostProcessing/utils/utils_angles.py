@@ -196,7 +196,7 @@ def calculate_angles(aligned_dict,begin,end,get_CTr_roll,zero_pose):
                             roll_tr = -roll_tr
                         elif ('RM' in leg and roll_tr>0) or ('LM' in leg and roll_tr<0):
                             roll_tr = -roll_tr
-                        elif ('RH' in leg and roll_tr<0) or ('LH' in leg and roll_tr>0):
+                        elif ('RH' in leg and roll_tr<0):# or ('LH' in leg and roll_tr>0):
                             roll_tr = -roll_tr
                         angles_dict[leg]['CTr_roll'].append(roll_tr)
                         

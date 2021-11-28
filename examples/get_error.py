@@ -5,7 +5,8 @@ import pickle
 
 leg_name = ['walking','grooming']
 
-experiments = ['/home/lobato/Desktop/DF3D_data/180921_aDN_PR_Fly8_005_SG1_behData_images/images/df3d/pose_result__home_nely_Desktop_animationSimfly_video2_180921_aDN_PR_Fly8_005_SG1_behData_images_images.pkl', '/home/lobato/Desktop/DF3D_data/180921_aDN_CsCh_Fly6_003_SG1_behData_images/images/df3d/pose_result__home_nely_Desktop_DF3D_data_180921_aDN_CsCh_Fly6_003_SG1_behData_images_images.pkl']
+experiments = ['/home/lobato/NeuroMechFly/data/joint_tracking/walking/df3d/pose_result__210902_PR_Fly4_004_beh_behData_images.pkl',
+               '/home/lobato/NeuroMechFly/data/joint_tracking/grooming/df3d/pose_result__180921_aDN_CsCh_Fly6_003_SG1_behData_images_images.pkl']
 
 #leg_name = ['grooming']
 
@@ -13,13 +14,13 @@ experiments = ['/home/lobato/Desktop/DF3D_data/180921_aDN_PR_Fly8_005_SG1_behDat
 
 for i, experiment in enumerate(experiments):
 
-    df3d = df3dPostProcess(experiment, calculate_3d=True)
-    align = df3d.align_to_template()
+    df3d = df3dPostProcess(experiment)
+    align = df3d.align_to_template(scale='local')
     angles = df3d.calculate_leg_angles()
 
-    angles_ik = utils_plots.calculate_inverse_kinematics(align, init_angles=angles,roll_tr=False)
+    angles_ik = utils_plots.calculate_inverse_kinematics(align, init_angles=angles, roll_tr=False)
 
-    errors = utils_plots.calculate_min_error(angles,align,extraDOF=['base','roll_tr','yaw_tr','roll_ti','yaw_ti','roll_ta','yaw_ta'])
+    errors = utils_plots.calculate_min_error(angles,align,extraDOF=['base','CTr_roll','CTr_yaw','FTi_roll','FTi_yaw','TiTa_roll','TiTa_yaw'])
 
     filename= 'errors_allExtraDOF_' + leg_name[i] + '.pkl'
     with open(filename, 'wb') as handle: 
@@ -35,7 +36,7 @@ for i, experiment in enumerate(experiments):
     for name, leg in errors_ik.items():
         errors[name]['IK'] = errors_ik[name]['IK']
 
-    order = ['base','IK','roll_tr','yaw_tr','roll_ti','yaw_ti','roll_ta','yaw_ta']
+    order = ['base','IK','CTr_roll','CTr_yaw','FTi_roll','FTi_yaw','TiTa_roll','TiTa_yaw']
     errors_ordered={}
     for name,leg in errors.items():
         errors_ordered[name]={}
