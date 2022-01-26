@@ -324,7 +324,6 @@ def triangulate_2d(data, exp_dir, outlier_correction):
     camNet.triangulate() 
 
     if outlier_correction:
-        print("correcting")
         camNet = correct_outliers(camNet)
 
     return camNet.points3d
