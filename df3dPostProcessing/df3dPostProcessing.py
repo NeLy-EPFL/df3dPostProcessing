@@ -235,7 +235,7 @@ class df3dPostProcess:
         if save_angles:
             path = 'joint_angles.pkl'
             if self.skeleton == 'df3d':
-                path = self.exp_dir.replace('pose_result','joint_angles')
+                path = self.exp_dir.replace('df3d_result','joint_angles')
             if self.skeleton == 'prism' or self.skeleton == 'lp3d':
                 folders = self.exp_dir.split('/')
                 parent = self.exp_dir[:self.exp_dir.find(folders[-1])]
@@ -257,7 +257,7 @@ class df3dPostProcess:
         if save_velocities:
             path = 'joint_velocities.pkl'
             if self.skeleton == 'df3d':
-                path = self.exp_dir.replace('pose_result','joint_velocities')
+                path = self.exp_dir.replace('df3d_result','joint_velocities')
             if self.skeleton == 'prism' or self.skeleton == 'lp3d':
                 folders = self.exp_dir.split('/')
                 parent = self.exp_dir[:self.exp_dir.find(folders[-1])]
@@ -280,7 +280,7 @@ class df3dPostProcess:
         ball_info = {'radius':ball_radius, 'position':ball_pos}
 
         if save_ball_info:
-            path = self.exp_dir.replace('pose_result','treadmill_info')
+            path = self.exp_dir.replace('df3d_result','treadmill_info')
             with open(path, 'wb') as f:
                 pickle.dump(ball_info, f)
 
@@ -310,10 +310,10 @@ class df3dPostProcess:
 
 def triangulate_2d(data, exp_dir):
     img_folder = exp_dir[:exp_dir.find('df3d')]
-    out_folder = exp_dir[:exp_dir.find('pose_result')]
+    out_folder = exp_dir[:exp_dir.find('df3d_result')]
     num_images = data['points3d'].shape[0]
     
-    from deepfly.CameraNetwork import CameraNetwork
+    from pyba.CameraNetwork import CameraNetwork
     camNet = CameraNetwork(image_folder=img_folder, output_folder=out_folder, num_images=num_images)
 
     for cam_id in range(7): 
