@@ -13,5 +13,7 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/NeLy-EPFL/df3dPostProcessing",
-    install_requires=["numpy", "scipy", "matplotlib","opencv-python","opencv-contrib-python","seaborn","scikit-learn","pandas","ikpy"],
+    install_requires=["numpy", "scipy", "matplotlib", "opencv-python",
+                      "opencv-contrib-python", "seaborn", "scikit-learn",
+                      "pandas", "ikpy", "nely-pyba"],
 )
