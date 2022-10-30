@@ -277,7 +277,7 @@ class df3dPostProcess:
         if save_angles:
             path = 'joint_angles.pkl'
             if self.skeleton == 'df3d':
-                path = self.exp_dir.replace('pose_result', 'joint_angles')
+                path = self.exp_dir.replace('df3d_result', 'joint_angles')
             if self.skeleton == 'prism' or self.skeleton == 'lp3d':
                 folders = self.exp_dir.split('/')
                 parent = self.exp_dir[:self.exp_dir.find(folders[-1])]
@@ -306,7 +306,7 @@ class df3dPostProcess:
         if save_velocities:
             path = 'joint_velocities.pkl'
             if self.skeleton == 'df3d':
-                path = self.exp_dir.replace('pose_result', 'joint_velocities')
+                path = self.exp_dir.replace('df3d_result', 'joint_velocities')
             if self.skeleton == 'prism' or self.skeleton == 'lp3d':
                 folders = self.exp_dir.split('/')
                 parent = self.exp_dir[:self.exp_dir.find(folders[-1])]
@@ -333,7 +333,7 @@ class df3dPostProcess:
         ball_info = {'radius': ball_radius, 'position': ball_pos}
 
         if save_ball_info:
-            path = self.exp_dir.replace('pose_result', 'treadmill_info')
+            path = self.exp_dir.replace('df3d_result', 'treadmill_info')
             with open(path, 'wb') as f:
                 pickle.dump(ball_info, f)
 
@@ -371,20 +371,19 @@ class df3dPostProcess:
 
 
 def triangulate_2d(data, exp_dir, outlier_correction):
-    img_folder = exp_dir[:exp_dir.find('df3d')]
-    out_folder = exp_dir[:exp_dir.find('pose_result')]
-    num_images = data['points3d'].shape[0]
-
-    from deepfly.CameraNetwork import CameraNetwork
-    camNet = CameraNetwork(
-        image_folder=img_folder,
-        output_folder=out_folder,
-        num_images=num_images)
+    img_folder = exp_dir[:exp_dir.find('/df3d/') + 1]
+    out_folder = exp_dir[:exp_dir.find('df3d_result')]
+    
+    from pyba.CameraNetwork import CameraNetwork
+    image_path = Path(img_folder) / 'camera_{cam_id}_img_{img_id}.jpg'
+    camNet = CameraNetwork(points2d=data['points2d'] * [480, 960],
+                           calib=data,
+                           image_path=str(image_path))
 
     for cam_id in range(7):
         camNet.cam_list[cam_id].set_intrinsic(data[cam_id]["intr"])
-        camNet.cam_list[cam_id].set_R(data[cam_id]["R"])
-        camNet.cam_list[cam_id].set_tvec(data[cam_id]["tvec"])
+        camNet.cam_list[cam_id].R = data[cam_id]["R"]
+        camNet.cam_list[cam_id].tvec = data[cam_id]["tvec"]
     camNet.triangulate()
 
     if outlier_correction:
