@@ -75,12 +75,6 @@ def _triangluate_specific_cameras(camNet, cam_id_list, img_id, j_id):
     for cam in [camNet.cam_list[cam_idx] for cam_idx in cam_id_list]:
         cam_list_iter.append(cam)
         points2d_iter.append(cam[img_id, j_id, :])
-    return triangulate_linear(cam_list_iter, points2d_iter)
-    cam_list_iter = list()
-    points2d_iter = list()
-    for cam in [camNet.cam_list[cam_idx] for cam_idx in cam_id_list]:
-        cam_list_iter.append(cam)
-        points2d_iter.append(cam[img_id, j_id, :])
     return triangulate([c.P for c in cam_list_iter], points2d_iter)
 
 
