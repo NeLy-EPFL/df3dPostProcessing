@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
 setuptools.setup(
     name="df3dPostProcessing",
     version="1.0",
-    packages=["df3dPostProcessing"],
+    packages=setuptools.find_packages(),
     author="Victor Lobato",
     author_email="victor.lobatorios@epfl.ch",
     description="Postprocessing functions for DeepFly3D results",
