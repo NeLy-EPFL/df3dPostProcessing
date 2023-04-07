@@ -17,7 +17,7 @@ def align_3d(
         ots,
         nts,
         window_length):
-    if skeleton == 'prism' or skeleton == 'lp3d':
+    if skeleton == 'prism' or skeleton == 'lp3d' or skeleton == 'flytracker': # Ari. FT addition
         pos_3d_dict = get_flycentric(pos_3d_dict)
     fix = get_fix_coxae_pos(pos_3d_dict)
     #align = align_3d_to_template(fix,skeleton,template,scale)
@@ -190,7 +190,7 @@ def get_deviation_angles(fixed_dict, skeleton):
     if skeleton == 'df3d':
         th_left = np.arctan2(lm[2] - lh[2], lm[0] - lh[0])
         th_right = np.arctan2(rm[2] - rh[2], rm[0] - rh[0])
-    if skeleton == 'prism' or skeleton == 'lp3d':
+    if skeleton == 'prism' or skeleton == 'lp3d' or skeleton == 'flytracker': # Ari. FT addition
         th_left = np.arctan2(lm[1] - lh[1], lm[0] - lh[0])
         th_right = np.arctan2(rm[1] - rh[1], rm[0] - rh[0])
 
@@ -229,7 +229,7 @@ def align_legs(fixed_dict, skeleton, template, scale):
                             [pos_zero_t[0], -pos_zero_t[1], pos_zero_t[2]]).transpose()
                         rot_mat = R.from_euler(
                             'zyx', [0, th_align[leg[0]], np.pi / 2])
-                    if skeleton == 'prism' or skeleton == 'lp3d':
+                    if skeleton == 'prism' or skeleton == 'lp3d' or skeleton == 'flytracker': # Ari. FT addition
                         rot_mat = R.from_euler('zyx', [th_align[leg[0]], 0, 0])
                     rot_pos = rot_mat.apply(pos_zero)
                     align_pos = rot_pos + template[leg[:2] + 'Coxa']
@@ -318,7 +318,7 @@ def align_legs_scale_global(fixed_dict, skeleton, template, scale=True):
                             [pos_zero_t[0], -pos_zero_t[1], pos_zero_t[2]]).transpose()
                         rot_mat = R.from_euler(
                             'zyx', [0, th_align[leg[0]], np.pi / 2])
-                    if skeleton == 'prism' or skeleton == 'lp3d':
+                    if skeleton == 'prism' or skeleton == 'lp3d' or skeleton == 'flytracker': # Ari. FT addition
                         rot_mat = R.from_euler('zyx', [th_align[leg[0]], 0, 0])
                     rot_pos = rot_mat.apply(pos_zero) * scale_factor
                     align_pos = rot_pos + template[leg[:2] + 'Coxa']
@@ -358,7 +358,7 @@ def align_head(align_dict, fixed_dict, skeleton, template, scale):
                             [pos_zero_t[0], -pos_zero_t[1], pos_zero_t[2]]).transpose()
                         rot_mat = R.from_euler(
                             'zyx', [0, th_align[joint[0]], np.pi / 2])
-                    if skeleton == 'prism' or skeleton == 'lp3d':
+                    if skeleton == 'prism' or skeleton == 'lp3d' or skeleton == 'flytracker': # Ari. FT addition
                         rot_mat = R.from_euler(
                             'zyx', [th_align[joint[0]], 0, 0])
                     rot_pos = rot_mat.apply(pos_zero) * scale_factor

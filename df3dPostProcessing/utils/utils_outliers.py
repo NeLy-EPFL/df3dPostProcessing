@@ -2,7 +2,7 @@ import itertools
 
 import numpy as np
 import scipy.interpolate
-import deepfly.signal_util
+#import deepfly.signal_util
 
 
 def find_outliers(camNet):

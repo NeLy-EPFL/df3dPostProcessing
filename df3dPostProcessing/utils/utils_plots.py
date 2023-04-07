@@ -2153,7 +2153,7 @@ def plot_legs_from_angles(
                         ndivide=None)}, handlelength=6, loc='lower left', title='Pose from 3D tracking', bbox_to_anchor=(
                     0, -0.03))
 
-            ax_legend = plt.gca().add_artist(first_legend)
+            #ax_legend = plt.gca().add_artist(first_legend) # Ari edit
 
             ax_3d.legend(
                 legend_FK, [

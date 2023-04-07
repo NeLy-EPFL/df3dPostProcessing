@@ -127,6 +127,39 @@ prism_skeleton = ['RFCoxa',
                   'A5',
                   'A6']
 
+# A. Ari Addition:
+
+flytracker_skel = ['RFCoxa',
+                 'RFFemur',
+                 'RFTibia',
+                 'RFTarsus',
+                 'RFClaw',
+                 'RMCoxa',
+                 'RMFemur',
+                 'RMTibia',
+                 'RMTarsus',
+                 'RMClaw',
+                 'RHCoxa',
+                 'RHFemur',
+                 'RHTibia',
+                 'RHTarsus',
+                 'RHClaw',
+                 'LFCoxa',
+                 'LFFemur',
+                 'LFTibia',
+                 'LFTarsus',
+                 'LFClaw',
+                 'LMCoxa',
+                 'LMFemur',
+                 'LMTibia',
+                 'LMTarsus',
+                 'LMClaw',
+                 'LHCoxa',
+                 'LHFemur',
+                 'LHTibia',
+                 'LHTarsus',
+                 'LHClaw']
+
 template_nmf = {'RFCoxa': [0.35, -0.27, 0.400],
                 'RFFemur': [0.35, -0.27, -0.025],
                 'RFTibia': [0.35, -0.27, -0.731],
@@ -278,7 +311,7 @@ class df3dPostProcess:
             path = 'joint_angles.pkl'
             if self.skeleton == 'df3d':
                 path = self.exp_dir.replace('pose_result', 'joint_angles')
-            if self.skeleton == 'prism' or self.skeleton == 'lp3d':
+            if self.skeleton == 'prism' or self.skeleton == 'lp3d'or self.skeleton == 'flytracker': # Ari. FT addition
                 folders = self.exp_dir.split('/')
                 parent = self.exp_dir[:self.exp_dir.find(folders[-1])]
                 path = os.path.join(parent, f"joint_angles__{folders[-1]}")
@@ -307,7 +340,7 @@ class df3dPostProcess:
             path = 'joint_velocities.pkl'
             if self.skeleton == 'df3d':
                 path = self.exp_dir.replace('pose_result', 'joint_velocities')
-            if self.skeleton == 'prism' or self.skeleton == 'lp3d':
+            if self.skeleton == 'prism' or self.skeleton == 'lp3d'or self.skeleton == 'flytracker': # Ari. FT addition
                 folders = self.exp_dir.split('/')
                 parent = self.exp_dir[:self.exp_dir.find(folders[-1])]
                 path = os.path.join(parent, f"joint_velocities__{folders[-1]}")
@@ -354,7 +387,7 @@ class df3dPostProcess:
             self.raw_data_3d = data[exp]
         else:
             data = np.load(exp, allow_pickle=True)
-            if skeleton == 'prism' or skeleton == 'lp3d':
+            if skeleton == 'prism' or skeleton == 'lp3d' or skeleton == 'flytracker': # Ari. FT addition
                 data = {'points3d_wo_procrustes': data}
             if calculate_3d:
                 self.raw_data_3d = triangulate_2d(
@@ -410,6 +443,8 @@ def load_data_to_dict(data, skeleton):
         tracked_joints = df3d_skeleton
     elif skeleton == 'lp3d':
         tracked_joints = prism_skeleton_LP3D
+    elif skeleton == 'flytracker':
+        tracked_joints = flytracker_skel
 
     if body_parts != len(tracked_joints):
         raise Exception("Check tracked joints definition")
