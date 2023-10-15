@@ -41,6 +41,7 @@ def load_csv(file_path):
 base_path = Path("data/clean_3d_best_ventral_best_side.csv")
 skel = "flytracker"
 data = load_csv(base_path)
+
 # save to pickle 
 exp_path = base_path.parent / "df3dpostprocess_reshape.pkl"
 with open(exp_path, "wb") as f:
@@ -64,6 +65,7 @@ beg, end = 0, 31
 if base_path.suffix == ".pkl":
     beg, end = 300, 400
 
+ 
 show = False
 utils_plots.plot_legs_from_angles(
         angles = angles,
@@ -74,7 +76,7 @@ utils_plots.plot_legs_from_angles(
         plane='xy',
         saveImgs=not show,
         dir_name='km',
-        extraDOF={},
+        extraDOF={'CTr_roll':angles},
         ik_angles=False,
         pause=show,
         lim_axes=False)
@@ -88,7 +90,7 @@ utils_plots.plot_legs_from_angles(
         plane='xz',
         saveImgs=not show,
         dir_name='km',
-        extraDOF={},
+        extraDOF={'CTr_roll':angles},
         ik_angles=False,
         pause=show,
         lim_axes=False)
