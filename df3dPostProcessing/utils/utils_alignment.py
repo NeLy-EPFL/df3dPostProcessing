@@ -5,6 +5,55 @@ from mpl_toolkits.mplot3d import Axes3D
 from scipy.spatial.transform import Rotation as R
 from scipy.interpolate import pchip_interpolate
 
+import matplotlib.pyplot as plt
+
+colors_dict = {
+        "RF": (0.0, 0.0, 1.0),
+        "RM": (0.0, 0.0, 0.75),
+        "RH": (0.0, 0.0, 0.5),
+        "LF": (1.0, 0.0, 0.0),
+        "LM": (0.75, 0.0, 0.0),
+        "LH": (0.5, 0.0, 0.0),
+    }
+
+def plot_legs(data, t_id=30):
+        
+    # Plot pose before alignment
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    t_id = 30
+    for leg, leg_data in data.items():
+        print(leg_data)
+        if not "leg" in leg:
+            continue
+        color = colors_dict[leg.split("_")[0]]
+        joints = list(leg_data.keys())
+        for i in range(len(joints)):  
+            joint = joints[i]
+
+            if not "Claw" in joint:
+                if "raw_pos_aligned" in leg_data[joint]:                    
+                    joint_data = np.vstack([leg_data[joint]["raw_pos_aligned"][t_id, :],
+                                    leg_data[joints[i+1]]["raw_pos_aligned"][t_id, :]])
+                    print(joint_data.shape)
+                elif "raw_pos" in leg_data[joint]:
+                    joint_data = np.vstack([leg_data[joint]["raw_pos"][t_id, :],
+                                    leg_data[joints[i+1]]["raw_pos"][t_id, :]])
+                else:
+                    joint_data = np.vstack([leg_data[joint][t_id, :],
+                                        leg_data[joints[i+1]][t_id, :]])
+                ax.plot(joint_data[:, 0], joint_data[:, 1], joint_data[:, 2], color = color)
+            else:
+                if "raw_pos_aligned" in leg_data[joint]:
+                    joint_data = leg_data[joint]["raw_pos_aligned"][t_id, :]
+                elif "raw_pos" in leg_data[joint]:
+                    joint_data = leg_data[joint]["raw_pos"][t_id, :]
+                else:
+                    joint_data = leg_data[joint][t_id, :]
+                ax.scatter(joint_data[0], joint_data[1], joint_data[2], color = color, label=leg)
+    plt.legend()
+    plt.show(block = True)
+
 
 def align_3d(
         pos_3d_dict,
@@ -16,20 +65,26 @@ def align_3d(
         smoothing,
         ots,
         nts,
-        window_length):
-    if skeleton == 'prism' or skeleton == 'lp3d' or skeleton == 'flytracker': # Ari. FT addition
+        window_length,
+        convolution_casting):
+
+    if skeleton == 'prism' or skeleton == 'lp3d' or skeleton == 'flytracker':
         pos_3d_dict = get_flycentric(pos_3d_dict)
+
     fix = get_fix_coxae_pos(pos_3d_dict)
+    #plot_legs(fix)
+    
     #align = align_3d_to_template(fix,skeleton,template,scale)
     align = align_pos_to_template(fix, skeleton, template, scale, all_body)
+    #plot_legs(align)
 
     if interpolate:
-        align = interpolate_3d_data(align, smoothing, ots, nts, window_length)
+        align = interpolate_3d_data(align, smoothing, ots, nts, window_length, convolution_casting)
 
     return align
 
 
-def interpolate_3d_data(data, smoothing, ots, nts, window_length):
+def interpolate_3d_data(data, smoothing, ots, nts, window_length, convolution_casting):
     """ This function interpolates the signal based on PCHIP and smoothes it using Hamming window. """
 
     interp_dict = {}
@@ -52,7 +107,7 @@ def interpolate_3d_data(data, smoothing, ots, nts, window_length):
                         if smoothing:
                             hamming_window = np.hamming(window_length)
                             interpolated_signal = np.convolve(
-                                hamming_window / hamming_window.sum(), interpolated_signal, mode='valid')
+                                hamming_window / hamming_window.sum(), interpolated_signal, mode=convolution_casting)
 
                         interp_pos.append(interpolated_signal)
                     interp_dict[leg][joint][key] = np.array(
@@ -114,6 +169,9 @@ def get_fix_coxae_pos(pos_3d_dict):
                 mean_x = np.mean(pos_t[0])
                 mean_y = np.mean(pos_t[1])
                 mean_z = np.mean(pos_t[2])
+                #print(landmark)
+                #print("means", mean_x, mean_y, mean_z)
+                #print("std", np.std(pos_t[0]), np.std(pos_t[1]), np.std(pos_t[2]))
                 extended_dict[segment][landmark]['fixed_pos'] = [
                     mean_x, mean_y, mean_z]
 
@@ -190,7 +248,7 @@ def get_deviation_angles(fixed_dict, skeleton):
     if skeleton == 'df3d':
         th_left = np.arctan2(lm[2] - lh[2], lm[0] - lh[0])
         th_right = np.arctan2(rm[2] - rh[2], rm[0] - rh[0])
-    if skeleton == 'prism' or skeleton == 'lp3d' or skeleton == 'flytracker': # Ari. FT addition
+    if skeleton == 'prism' or skeleton == 'lp3d' or skeleton == 'flytracker':
         th_left = np.arctan2(lm[1] - lh[1], lm[0] - lh[0])
         th_right = np.arctan2(rm[1] - rh[1], rm[0] - rh[0])
 
@@ -229,7 +287,7 @@ def align_legs(fixed_dict, skeleton, template, scale):
                             [pos_zero_t[0], -pos_zero_t[1], pos_zero_t[2]]).transpose()
                         rot_mat = R.from_euler(
                             'zyx', [0, th_align[leg[0]], np.pi / 2])
-                    if skeleton == 'prism' or skeleton == 'lp3d' or skeleton == 'flytracker': # Ari. FT addition
+                    if skeleton == 'prism' or skeleton == 'lp3d' or skeleton == 'flytracker':
                         rot_mat = R.from_euler('zyx', [th_align[leg[0]], 0, 0])
                     rot_pos = rot_mat.apply(pos_zero)
                     align_pos = rot_pos + template[leg[:2] + 'Coxa']
@@ -318,7 +376,7 @@ def align_legs_scale_global(fixed_dict, skeleton, template, scale=True):
                             [pos_zero_t[0], -pos_zero_t[1], pos_zero_t[2]]).transpose()
                         rot_mat = R.from_euler(
                             'zyx', [0, th_align[leg[0]], np.pi / 2])
-                    if skeleton == 'prism' or skeleton == 'lp3d' or skeleton == 'flytracker': # Ari. FT addition
+                    if skeleton == 'prism' or skeleton == 'lp3d' or skeleton == 'flytracker':
                         rot_mat = R.from_euler('zyx', [th_align[leg[0]], 0, 0])
                     rot_pos = rot_mat.apply(pos_zero) * scale_factor
                     align_pos = rot_pos + template[leg[:2] + 'Coxa']
@@ -358,7 +416,7 @@ def align_head(align_dict, fixed_dict, skeleton, template, scale):
                             [pos_zero_t[0], -pos_zero_t[1], pos_zero_t[2]]).transpose()
                         rot_mat = R.from_euler(
                             'zyx', [0, th_align[joint[0]], np.pi / 2])
-                    if skeleton == 'prism' or skeleton == 'lp3d' or skeleton == 'flytracker': # Ari. FT addition
+                    if skeleton == 'prism' or skeleton == 'lp3d' or skeleton == 'flytracker':
                         rot_mat = R.from_euler(
                             'zyx', [th_align[joint[0]], 0, 0])
                     rot_pos = rot_mat.apply(pos_zero) * scale_factor

@@ -9,7 +9,7 @@ from sklearn import svm
 from . import utils_angles
 import pandas as pd
 from scipy import stats
-from statsmodels.stats import weightstats as stests
+#from statsmodels.stats import weightstats as stests
 from .utils_angles import calculate_forward_kinematics
 from ikpy.chain import Chain
 from ikpy.link import OriginLink, URDFLink
@@ -23,7 +23,7 @@ import cv2 as cv
 from matplotlib.markers import MarkerStyle
 from pathlib import Path
 import pkgutil
-import scikit_posthocs as sp
+#import scikit_posthocs as sp
 
 
 def plot_angles(angles, key, degrees=True):
@@ -2152,8 +2152,10 @@ def plot_legs_from_angles(
                     tuple: HandlerTuple(
                         ndivide=None)}, handlelength=6, loc='lower left', title='Pose from 3D tracking', bbox_to_anchor=(
                     0, -0.03))
+            ax_2d.legend()
 
             #ax_legend = plt.gca().add_artist(first_legend) # Ari edit
+            ax_legend = ax_3d.add_artist(first_legend) 
 
             ax_3d.legend(
                 legend_FK, [
@@ -2173,7 +2175,7 @@ def plot_legs_from_angles(
             if plane is not '':
                 view_2d.legend()
             if pause:
-                plt.show()
+                plt.show(block=True)
             else:
                 # plt.show(block=False)
                 plt.draw()

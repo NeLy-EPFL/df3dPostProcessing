@@ -160,6 +160,7 @@ flytracker_skel = ['RFCoxa',
                  'LHTarsus',
                  'LHClaw']
 
+
 template_nmf = {'RFCoxa': [0.35, -0.27, 0.400],
                 'RFFemur': [0.35, -0.27, -0.025],
                 'RFTibia': [0.35, -0.27, -0.731],
@@ -192,6 +193,8 @@ template_nmf = {'RFCoxa': [0.35, -0.27, 0.400],
                 'LHClaw': [-0.215, 0.087, -2.588],
                 'RAntenna': [0.25, -0.068, 0.67],
                 'LAntenna': [0.25, 0.068, 0.67]}
+
+
 
 zero_pose_nmf = {'RF_leg': {'ThC_yaw': 0,
                             'ThC_pitch': 0,
@@ -272,7 +275,9 @@ class df3dPostProcess:
             smoothing=True,
             original_time_step=0.01,
             new_time_step=0.001,
-            window_length=29):
+            window_length=29,
+            convolution_casting="valid"
+            ):
         self.aligned_model = align_3d(
             self.data_3d_dict,
             self.skeleton,
@@ -283,7 +288,8 @@ class df3dPostProcess:
             smoothing,
             original_time_step,
             new_time_step,
-            window_length)
+            window_length,
+            convolution_casting)
 
         return self.aligned_model
 
