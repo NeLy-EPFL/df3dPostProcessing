@@ -31,7 +31,7 @@ def find_outliers(camNet):
                               19, 20, 21, 22,
                               24, 25, 26, 27,
                               29, 30, 31, 32, ],
-                             dtype=np.int)
+                             dtype=int)
     stop_indices = start_indices + 1
     lengths = np.linalg.norm(
         camNet.points3d[:, start_indices, :] - camNet.points3d[:, stop_indices, :], axis=2)
