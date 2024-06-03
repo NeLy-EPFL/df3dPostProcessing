@@ -41,7 +41,7 @@ def find_outliers(camNet):
         1.4) | (
         lengths < median_lengths *
         0.4)
-    outlier_mask = np.zeros(camNet.points3d.shape, dtype=np.bool)
+    outlier_mask = np.zeros(camNet.points3d.shape, dtype=bool)
     for i, mask_offset in enumerate([0, 5, 10, 19, 24, 29]):
         claw_outliers = np.where(
             length_outliers[:, i * 4 + 3] & ~length_outliers[:, i * 4 + 2])[0]
