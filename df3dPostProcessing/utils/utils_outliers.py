@@ -2,7 +2,7 @@ import itertools
 
 import numpy as np
 import scipy.interpolate
-import deepfly.signal_util
+import df3d.signal_util
 
 
 def find_outliers(camNet):
@@ -31,7 +31,7 @@ def find_outliers(camNet):
                               19, 20, 21, 22,
                               24, 25, 26, 27,
                               29, 30, 31, 32, ],
-                             dtype=np.int)
+                             dtype=int)
     stop_indices = start_indices + 1
     lengths = np.linalg.norm(
         camNet.points3d[:, start_indices, :] - camNet.points3d[:, stop_indices, :], axis=2)
@@ -41,7 +41,7 @@ def find_outliers(camNet):
         1.4) | (
         lengths < median_lengths *
         0.4)
-    outlier_mask = np.zeros(camNet.points3d.shape, dtype=np.bool)
+    outlier_mask = np.zeros(camNet.points3d.shape, dtype=bool)
     for i, mask_offset in enumerate([0, 5, 10, 19, 24, 29]):
         claw_outliers = np.where(
             length_outliers[:, i * 4 + 3] & ~length_outliers[:, i * 4 + 2])[0]
@@ -69,13 +69,14 @@ def find_outliers(camNet):
 
 
 def _triangluate_specific_cameras(camNet, cam_id_list, img_id, j_id):
-    from deepfly.cv_util import triangulate_linear
+    from pyba.util import triangulate
     cam_list_iter = list()
     points2d_iter = list()
     for cam in [camNet.cam_list[cam_idx] for cam_idx in cam_id_list]:
         cam_list_iter.append(cam)
         points2d_iter.append(cam[img_id, j_id, :])
-    return triangulate_linear(cam_list_iter, points2d_iter)
+    return triangulate([c.P for c in cam_list_iter], points2d_iter)
+
 
 
 def interpolate_remaining_outliers(camNet, outliers):
@@ -118,8 +119,12 @@ def correct_outliers(camNet):
                                            camNet.points3d[img_id, joint_id + 1]) - median_lengths[median_index]
             segment_length_diff.append(new_diff)
 
-            def reprojection_error_function(cam_id): return camNet.cam_list[cam_id].project(
-                points3d_using_2_cams) - camNet.cam_list[cam_id].points2d[img_id, joint_id]
+            def reprojection_error_function(cam_id): 
+                reshaped_points = points3d_using_2_cams.reshape(1, 1, 3)
+                proj = camNet.cam_list[cam_id].project(reshaped_points)
+                points2d = camNet.cam_list[cam_id].points2d[img_id, joint_id]
+                return proj - points2d
+
             reprojection_error = np.mean(
                 [reprojection_error_function(cam_id) for cam_id in subset_cam_ids])
             reprojection_errors.append(reprojection_error)
@@ -151,6 +156,5 @@ def correct_outliers(camNet):
     outliers = find_outliers(camNet)
     camNet = interpolate_remaining_outliers(camNet, outliers)
 
-    camNet.points3d = deepfly.signal_util.filter_batch(
-        camNet.points3d, freq=100)
+    camNet._points3d = df3d.signal_util.filter_batch(camNet.points3d, freq=100)
     return camNet
