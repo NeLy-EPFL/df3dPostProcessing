@@ -29,6 +29,3 @@ dependencies = [
     "ikpy",
     "nely-pyba",
 ]
-
-[tool.setuptools.packages.find]
-include = ["df3dPostProcessing"]
